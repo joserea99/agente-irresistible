@@ -133,7 +133,8 @@ def dashboard():
                 browser = BrowserService()
                 # Start from the dashboard or a known useful root
                 start_url = "https://my.irresistible.church/irresistiblechurchnetwork"
-                pages = browser.crawl_recursive(start_url, max_depth=2, max_pages=15)
+                # MAX POWER MODE: Increased depth and pages for paid tier
+                pages = browser.crawl_recursive(start_url, max_depth=3, max_pages=50)
                 browser.close()
                 
                 count = 0

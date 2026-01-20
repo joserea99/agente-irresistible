@@ -1,9 +1,8 @@
-# Railway Nixpacks Configuration
 [phases.setup]
-nixPkgs = ["python311", "chromium", "glib", "nss", "nspr", "atk", "at-spi2-atk", "cups", "dbus", "libdrm", "libxkbcommon", "mesa", "alsa-lib", "cairo", "pango", "xorg.libX11", "xorg.libXcomposite", "xorg.libXdamage", "xorg.libXext", "xorg.libXfixes", "xorg.libXrandr", "xorg.libxcb"]
+nixPkgs = ["python311", "playwright-driver"]
 
 [phases.install]
 cmds = ["python -m venv /opt/venv && . /opt/venv/bin/activate && pip install -r requirements.txt", "playwright install chromium"]
 
 [start]
-cmd = ". /opt/venv/bin/activate && streamlit run app.py --server.port=$PORT --server.address=0.0.0.0"
+cmd = ". /opt/venv/bin/activate && streamlit run app.py --server.port= --server.address=0.0.0.0"

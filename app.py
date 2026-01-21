@@ -378,7 +378,19 @@ def dashboard():
             if not search_topic:
                 st.warning("⚠️ Por favor escribe un tema para investigar")
             else:
-                # Create a status container for real-time updates
+                # Statistics tracking
+                stats = {
+                    "urls_visited": [],
+                    "urls_skipped": [],
+                    "pages_with_content": 0,
+                    "pages_relevant": 0,
+                    "media_videos": [],
+                    "media_audios": [],
+                    "media_pdfs": [],
+                    "errors": []
+                }
+                
+                # Create UI containers
                 status_container = st.container()
                 progress_bar = st.progress(0)
                 log_area = st.empty()
@@ -394,34 +406,57 @@ def dashboard():
                     if login_success:
                         log_area.markdown("✅ Conectado! Iniciando navegación...")
                         
-                        # Custom crawl with logging
+                        # Custom crawl with comprehensive logging
                         pages = []
                         visited = set()
                         to_visit = [(IRRESISTIBLE_URL, 0)]
                         count = 0
+                        all_media = {"videos": [], "audios": [], "pdfs": [], "other": []}
                         
                         while to_visit and count < max_pages:
                             current_url, depth = to_visit.pop(0)
                             
                             if current_url in visited or depth > crawl_depth:
+                                if current_url not in visited:
+                                    stats["urls_skipped"].append(current_url)
                                 continue
                             
                             visited.add(current_url)
-                            progress_bar.progress(count / max_pages)
-                            log_area.markdown(f"🕷️ Visitando: `{current_url[:60]}...`")
+                            stats["urls_visited"].append(current_url)
+                            progress_bar.progress(min(len(visited) / max_pages, 0.99))
+                            log_area.markdown(f"🕷️ **[{len(visited)}/{max_pages}]** Visitando: `{current_url[:50]}...`")
                             
                             try:
                                 browser.page.goto(current_url, timeout=15000)
                                 content_data = browser.get_page_content()
                                 
                                 if content_data and content_data.get('content'):
+                                    stats["pages_with_content"] += 1
+                                    
+                                    # Collect media links
+                                    if content_data.get('media_links'):
+                                        for media_url in content_data['media_links']:
+                                            ml = media_url.lower()
+                                            if any(ext in ml for ext in ['.mp4', '.mov', '.webm', '.avi']):
+                                                all_media["videos"].append(media_url)
+                                            elif any(ext in ml for ext in ['.mp3', '.wav', '.m4a', '.ogg']):
+                                                all_media["audios"].append(media_url)
+                                            elif '.pdf' in ml:
+                                                all_media["pdfs"].append(media_url)
+                                            else:
+                                                all_media["other"].append(media_url)
+                                    
                                     # Check if content is relevant to the topic
                                     content_lower = content_data['content'].lower()
                                     topic_lower = search_topic.lower()
+                                    topic_words = topic_lower.split()
                                     
-                                    if topic_lower in content_lower or any(word in content_lower for word in topic_lower.split()):
+                                    is_relevant = topic_lower in content_lower or any(word in content_lower for word in topic_words)
+                                    
+                                    if is_relevant:
                                         pages.append(content_data)
-                                        log_area.markdown(f"✅ **Encontrado contenido relevante:** {content_data.get('title', 'Sin título')[:50]}")
+                                        stats["pages_relevant"] += 1
+                                        log_area.markdown(f"✅ **[RELEVANTE]** {content_data.get('title', 'Sin título')[:40]}")
                                         
                                         # Index immediately
                                         st.session_state.rag.add_document(
@@ -430,47 +465,89 @@ def dashboard():
                                             title=content_data.get('title', 'Page')
                                         )
                                         count += 1
+                                    else:
+                                        log_area.markdown(f"⏭️ Página sin contenido relevante: {content_data.get('title', '')[:30]}")
                                 
                                 # Get links for next level
                                 if depth < crawl_depth:
                                     links = browser.page.eval_on_selector_all("a", "elements => elements.map(e => e.href)")
+                                    new_links = 0
                                     for link in links:
                                         if "irresistible" in link and link not in visited and "logout" not in link.lower():
                                             if link.startswith("http"):
                                                 to_visit.append((link, depth + 1))
+                                                new_links += 1
+                                    if new_links > 0:
+                                        log_area.markdown(f"🔗 Encontrados {new_links} enlaces para explorar")
                                                 
                             except Exception as e:
-                                log_area.markdown(f"⚠️ Error en {current_url[:30]}: {str(e)[:50]}")
+                                stats["errors"].append(f"{current_url[:30]}: {str(e)[:50]}")
+                                log_area.markdown(f"⚠️ Error: {str(e)[:50]}")
                         
                         browser.close()
                         progress_bar.progress(1.0)
                         
-                        # Summary
-                        if pages:
-                            st.success(f"""
-                            🎉 **¡Investigación completada!**
-                            - Páginas visitadas: {len(visited)}
-                            - Contenido relevante encontrado: {len(pages)}
-                            - Tema: {search_topic}
-                            """)
+                        # ===== COMPREHENSIVE REPORT =====
+                        st.markdown("---")
+                        st.markdown("## 📊 Reporte de Investigación")
+                        
+                        # Quick stats
+                        col1, col2, col3, col4 = st.columns(4)
+                        with col1:
+                            st.metric("URLs Visitadas", len(stats["urls_visited"]))
+                        with col2:
+                            st.metric("Con Contenido", stats["pages_with_content"])
+                        with col3:
+                            st.metric("Relevantes", stats["pages_relevant"])
+                        with col4:
+                            total_media = len(all_media["videos"]) + len(all_media["audios"]) + len(all_media["pdfs"])
+                            st.metric("Media Encontrada", total_media)
+                        
+                        # Media breakdown
+                        if all_media["videos"] or all_media["audios"] or all_media["pdfs"]:
+                            st.markdown("### 📹 Archivos Multimedia Detectados")
                             
-                            # Show what was found
-                            with st.expander("📋 Páginas indexadas"):
+                            if all_media["videos"]:
+                                with st.expander(f"🎬 Videos ({len(all_media['videos'])})"):
+                                    for v in all_media["videos"][:20]:
+                                        st.markdown(f"- `{v.split('/')[-1]}`")
+                            
+                            if all_media["audios"]:
+                                with st.expander(f"🎧 Audios ({len(all_media['audios'])})"):
+                                    for a in all_media["audios"][:20]:
+                                        st.markdown(f"- `{a.split('/')[-1]}`")
+                            
+                            if all_media["pdfs"]:
+                                with st.expander(f"📄 PDFs ({len(all_media['pdfs'])})"):
+                                    for p in all_media["pdfs"][:20]:
+                                        st.markdown(f"- `{p.split('/')[-1]}`")
+                        else:
+                            st.info("ℹ️ No se detectaron archivos multimedia (videos, audios, PDFs) en las páginas visitadas.")
+                        
+                        # Pages found
+                        if pages:
+                            st.markdown("### ✅ Páginas Indexadas (Relevantes)")
+                            with st.expander(f"Ver {len(pages)} páginas"):
                                 for p in pages:
                                     st.markdown(f"- [{p.get('title', 'Sin título')[:50]}]({p['url']})")
-                            
-                            # Check for media
-                            media_queue = []
-                            for p in pages:
-                                if p.get('media_links'):
-                                    media_queue.extend(p['media_links'])
-                            
-                            media_queue = list(set(media_queue))
-                            
-                            if media_queue:
-                                st.info(f"📹 Encontré {len(media_queue)} archivos multimedia relacionados")
+                        
+                        # All URLs visited
+                        with st.expander(f"🔍 Todas las URLs visitadas ({len(stats['urls_visited'])})"):
+                            for url in stats["urls_visited"]:
+                                st.markdown(f"- `{url[:70]}...`")
+                        
+                        # Errors if any
+                        if stats["errors"]:
+                            with st.expander(f"⚠️ Errores ({len(stats['errors'])})"):
+                                for err in stats["errors"]:
+                                    st.markdown(f"- {err}")
+                        
+                        # Final verdict
+                        if stats["pages_relevant"] == 0:
+                            st.warning(f"🔍 No encontré contenido específico sobre '{search_topic}'. El sitio puede tener la información en PDFs o videos que requieren descarga y transcripción.")
                         else:
-                            st.warning(f"No encontré contenido específico sobre '{search_topic}'. Intenta con otros términos.")
+                            st.success(f"✅ Investigación completada. {stats['pages_relevant']} páginas relevantes añadidas a la base de conocimiento.")
+                            
                     else:
                         st.error("❌ Error de login a irresistible.church")
                         

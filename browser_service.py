@@ -6,6 +6,10 @@ import time
 STORAGE_STATE = "auth_state.json"
 BASE_URL = "https://my.irresistible.church/irresistiblechurchnetwork"
 
+# Browserless connection for cloud deployment
+# Sign up at browserless.io for a free API key
+BROWSERLESS_URL = os.environ.get("BROWSERLESS_URL", None)
+
 class BrowserService:
     def __init__(self):
         self.headless = True
@@ -13,32 +17,65 @@ class BrowserService:
         self.browser = None
         self.context = None
         self.page = None
+        self.is_remote = False
 
     def start_browser(self):
-        """Starts a persistent browser session."""
+        """Starts a browser session - local or remote depending on environment."""
         self.playwright = sync_playwright().start()
-        self.browser = self.playwright.chromium.launch(headless=self.headless)
         
-        # Load state if exists, otherwise new context
-        if os.path.exists(STORAGE_STATE):
-            self.context = self.browser.new_context(storage_state=STORAGE_STATE)
+        # Check if we should use a remote browser (Browserless)
+        if BROWSERLESS_URL:
+            print(f"🌐 Connecting to remote browser at Browserless...")
+            try:
+                self.browser = self.playwright.chromium.connect_over_cdp(BROWSERLESS_URL)
+                self.is_remote = True
+                print("✅ Connected to remote browser!")
+            except Exception as e:
+                print(f"❌ Failed to connect to Browserless: {e}")
+                print("⚠️ Falling back to local browser...")
+                self._start_local_browser()
         else:
-            self.context = self.browser.new_context()
+            self._start_local_browser()
+        
+        # Create context and page
+        if self.browser:
+            # For remote browsers, don't use storage_state (session is fresh each time)
+            if self.is_remote:
+                self.context = self.browser.new_context()
+            else:
+                # Load state if exists for local browser
+                if os.path.exists(STORAGE_STATE):
+                    self.context = self.browser.new_context(storage_state=STORAGE_STATE)
+                else:
+                    self.context = self.browser.new_context()
             
-        self.page = self.context.new_page()
+            self.page = self.context.new_page()
+    
+    def _start_local_browser(self):
+        """Start local Chromium browser."""
+        try:
+            self.browser = self.playwright.chromium.launch(headless=self.headless)
+            self.is_remote = False
+            print("🖥️ Using local browser")
+        except Exception as e:
+            print(f"❌ Failed to start local browser: {e}")
+            self.browser = None
 
     def login(self, username, password):
         """Performs login and saves state."""
-        # Ensure browser is running
         if not self.page:
             self.start_browser()
+        
+        if not self.browser:
+            print("❌ No browser available!")
+            return False
 
         try:
             self.page.goto(BASE_URL)
             
             # Check if login is needed
             if "sign_in" in self.page.url:
-                print("Logging in...")
+                print("🔐 Logging in...")
                 self.page.fill("#session_email", username)
                 self.page.fill("#session_password", password)
                 
@@ -50,13 +87,14 @@ class BrowserService:
 
                 self.page.wait_for_load_state("networkidle")
             
-            # Save storage state
-            self.context.storage_state(path=STORAGE_STATE)
-            print(f"Login successful. State saved to {STORAGE_STATE}")
+            # Save storage state (only for local browsers)
+            if not self.is_remote:
+                self.context.storage_state(path=STORAGE_STATE)
+            print(f"✅ Login successful!")
             return True
             
         except Exception as e:
-            print(f"Login failed: {e}")
+            print(f"❌ Login failed: {e}")
             return False
 
     def get_page_content(self):
@@ -147,4 +185,3 @@ class BrowserService:
         if self.playwright:
             self.playwright.stop()
         self.page = None
-

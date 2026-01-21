@@ -15,8 +15,6 @@ RUN playwright install --with-deps chromium
 # Copy application files
 COPY . .
 
-# Expose port (Documentation purpose, actual port passed via env)
-EXPOSE 8501
-
-# Run the application using shell form to expand variable
-CMD sh -c "streamlit run app.py --server.port=${PORT:-8501} --server.address=0.0.0.0"
+# Run the application
+# We use a shell script entrypoint to properly handle the PORT variable
+CMD ["sh", "-c", "streamlit run app.py --server.port=${PORT:-8501} --server.address=0.0.0.0"]

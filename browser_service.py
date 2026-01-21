@@ -69,33 +69,62 @@ class BrowserService:
         if not self.browser:
             print("❌ No browser available!")
             return False
+        
+        self.credentials = {"username": username, "password": password}
 
         try:
-            self.page.goto(BASE_URL)
+            self.page.goto(BASE_URL, wait_until="networkidle")
+            import time
+            time.sleep(2)  # Let the page fully load
             
             # Check if login is needed
-            if "sign_in" in self.page.url:
+            if "sign" in self.page.url.lower() or "login" in self.page.url.lower():
                 print("🔐 Logging in...")
+                
+                # Wait for form to be ready
+                self.page.wait_for_selector("#session_email", timeout=10000)
                 self.page.fill("#session_email", username)
                 self.page.fill("#session_password", password)
                 
                 # Try to find the button more robustly
                 try:
-                    self.page.click("input[type='submit']", timeout=2000)
+                    self.page.click("input[type='submit']", timeout=3000)
                 except:
-                    self.page.click("button:has-text('Log in')", timeout=2000)
+                    try:
+                        self.page.click("button:has-text('Log in')", timeout=3000)
+                    except:
+                        self.page.click("button[type='submit']", timeout=3000)
 
                 self.page.wait_for_load_state("networkidle")
+                time.sleep(3)  # Wait for session to establish
+                
+                # Verify we're actually logged in
+                if "sign" in self.page.url.lower() or "login" in self.page.url.lower():
+                    print("⚠️ Still on login page - login may have failed")
+                    return False
             
             # Save storage state (only for local browsers)
             if not self.is_remote:
                 self.context.storage_state(path=STORAGE_STATE)
-            print(f"✅ Login successful!")
+            print(f"✅ Login successful! Current URL: {self.page.url}")
             return True
             
         except Exception as e:
             print(f"❌ Login failed: {e}")
             return False
+    
+    def ensure_logged_in(self):
+        """Re-authenticates if we've been logged out."""
+        if not self.page:
+            return False
+        
+        current_url = self.page.url
+        if "sign" in current_url.lower() or "login" in current_url.lower():
+            print("🔄 Session expired, re-authenticating...")
+            if hasattr(self, 'credentials'):
+                return self.login(self.credentials["username"], self.credentials["password"])
+            return False
+        return True
 
     def get_page_content(self):
         """Extracts main content and media links from the current page."""

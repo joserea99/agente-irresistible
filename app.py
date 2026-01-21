@@ -445,7 +445,16 @@ def dashboard():
                             log_area.markdown(f"🧠 **[{len(visited)}/{max_pages}]** Estudiando: `{current_url[:45]}...`")
                             
                             try:
+                                # Ensure we're still logged in before each navigation
+                                browser.ensure_logged_in()
                                 browser.page.goto(current_url, timeout=15000)
+                                
+                                # Skip if we got redirected to login
+                                if "sign" in browser.page.url.lower() or "login" in browser.page.url.lower():
+                                    log_area.markdown(f"⚠️ Redirigido al login, intentando re-autenticar...")
+                                    browser.ensure_logged_in()
+                                    continue
+                                
                                 content_data = browser.get_page_content()
                                 
                                 if content_data and content_data.get('content'):
@@ -625,10 +634,10 @@ def dashboard():
                                     st.markdown(f"- {err}")
                         
                         # Final verdict
-                        if stats["pages_relevant"] == 0:
-                            st.warning(f"🔍 No encontré contenido específico sobre '{search_topic}'. El sitio puede tener la información en PDFs o videos que requieren descarga y transcripción.")
+                        if stats["pages_indexed"] == 0:
+                            st.warning(f"🔍 No se pudieron indexar páginas. El navegador puede no estar accediendo correctamente al contenido.")
                         else:
-                            st.success(f"✅ Investigación completada. {stats['pages_relevant']} páginas relevantes añadidas a la base de conocimiento.")
+                            st.balloons()
                             
                     else:
                         st.error("❌ Error de login a irresistible.church")

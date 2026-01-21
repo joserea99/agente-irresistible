@@ -43,7 +43,7 @@ class AgentEngine:
             self.llm = None
             self.llm_with_tools = None
 
-    def generate_response(self, user_input, history=[], persona_key="Programación de Servicio", system_prompt_override=None):
+    def generate_response(self, user_input, history=[], persona_key="Programación de Servicio", system_prompt_override=None, rag_context=None):
         """Generates a response using tools and a specific persona."""
         
         if not self.llm_with_tools:
@@ -54,6 +54,18 @@ class AgentEngine:
             system_prompt = system_prompt_override
         else:
             system_prompt = PERSONAS.get(persona_key, PERSONAS["Programación de Servicio"])
+        
+        # Add RAG context if available
+        if rag_context:
+            system_prompt += f"""
+            
+## RELEVANT CONTEXT FROM KNOWLEDGE BASE:
+The following is information retrieved from the church's knowledge base that may be relevant to the user's question:
+
+{rag_context}
+
+Use this context to provide more specific and accurate answers. If the context doesn't apply, use your general knowledge.
+"""
             
         messages = [SystemMessage(content=system_prompt)]
         

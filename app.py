@@ -362,41 +362,62 @@ def dashboard():
         # ========== SMART CRAWL ==========
         st.divider()
         st.markdown("### 🕷️ Smart Crawl")
-        st.caption("Navega y aprende del sitio Irresistible Church")
+        st.caption("Navega, APRENDE y robustece tu base de conocimiento")
         
-        # Topic input for targeted search
+        # Topic input - now used for PRIORITIZATION, not filtering
         search_topic = st.text_input(
-            "🔍 ¿Qué tema quieres investigar?",
+            "🎯 ¿Sobre qué tema quieres aprender?",
             placeholder="Ej: grupos pequeños, liderazgo, niños, worship...",
-            key="crawl_topic"
+            key="crawl_topic",
+            help="El sistema aprenderá TODO lo que encuentre, pero priorizará páginas relacionadas con tu tema."
         )
         
-        crawl_depth = st.slider("Profundidad de búsqueda", 1, 5, 2, key="crawl_depth")
-        max_pages = st.slider("Máximo de páginas", 5, 100, 20, key="max_pages")
+        crawl_depth = st.slider("Profundidad de navegación", 1, 5, 3, key="crawl_depth")
+        max_pages = st.slider("Máximo de páginas a estudiar", 10, 150, 50, key="max_pages")
         
-        if st.button("🚀 Iniciar Smart Crawl", use_container_width=True):
+        # Learning mode toggle
+        learn_all = st.checkbox("📚 Modo Aprendizaje Total", value=True, 
+            help="Aprende de TODAS las páginas, no solo las que coinciden con el tema")
+        
+        if st.button("🧠 Iniciar Aprendizaje", use_container_width=True):
             if not search_topic:
-                st.warning("⚠️ Por favor escribe un tema para investigar")
+                st.warning("⚠️ Por favor escribe un tema para enfocar el aprendizaje")
             else:
                 # Statistics tracking
                 stats = {
                     "urls_visited": [],
-                    "urls_skipped": [],
-                    "pages_with_content": 0,
-                    "pages_relevant": 0,
-                    "media_videos": [],
-                    "media_audios": [],
-                    "media_pdfs": [],
+                    "pages_indexed": 0,
+                    "pages_prioritized": 0,  # Related to topic
                     "errors": []
                 }
                 
                 # Create UI containers
-                status_container = st.container()
                 progress_bar = st.progress(0)
                 log_area = st.empty()
+                indexed_list = []  # Track what we indexed
                 
-                with status_container:
-                    st.info(f"🔍 Buscando información sobre: **{search_topic}**")
+                # Normalize topic for flexible matching
+                def normalize_text(text):
+                    """Remove spaces, lowercase, for flexible matching"""
+                    return ''.join(text.lower().split())
+                
+                def fuzzy_match(topic, content):
+                    """Flexible matching that handles variations"""
+                    topic_normalized = normalize_text(topic)
+                    content_normalized = normalize_text(content)
+                    
+                    # Check normalized match
+                    if topic_normalized in content_normalized:
+                        return True
+                    
+                    # Check each word
+                    topic_words = topic.lower().split()
+                    content_lower = content.lower()
+                    
+                    matches = sum(1 for word in topic_words if word in content_lower)
+                    return matches >= len(topic_words) * 0.5  # At least 50% of words match
+                
+                st.info(f"🎯 Aprendiendo sobre: **{search_topic}** | Modo: {'📚 Aprender Todo' if learn_all else '🔍 Solo Relevantes'}")
                 
                 try:
                     log_area.markdown("🔐 Conectando a irresistible.church...")
@@ -404,36 +425,35 @@ def dashboard():
                     login_success = browser.login(IRRESISTIBLE_EMAIL, IRRESISTIBLE_PASSWORD)
                     
                     if login_success:
-                        log_area.markdown("✅ Conectado! Iniciando navegación...")
+                        log_area.markdown("✅ Conectado! Iniciando aprendizaje...")
                         
-                        # Custom crawl with comprehensive logging
-                        pages = []
+                        # Crawl and LEARN
                         visited = set()
                         to_visit = [(IRRESISTIBLE_URL, 0)]
-                        count = 0
-                        all_media = {"videos": [], "audios": [], "pdfs": [], "other": []}
+                        all_media = {"videos": [], "audios": [], "pdfs": []}
+                        pages_data = []
                         
-                        while to_visit and count < max_pages:
+                        while to_visit and len(visited) < max_pages:
                             current_url, depth = to_visit.pop(0)
                             
                             if current_url in visited or depth > crawl_depth:
-                                if current_url not in visited:
-                                    stats["urls_skipped"].append(current_url)
                                 continue
                             
                             visited.add(current_url)
                             stats["urls_visited"].append(current_url)
                             progress_bar.progress(min(len(visited) / max_pages, 0.99))
-                            log_area.markdown(f"🕷️ **[{len(visited)}/{max_pages}]** Visitando: `{current_url[:50]}...`")
+                            log_area.markdown(f"🧠 **[{len(visited)}/{max_pages}]** Estudiando: `{current_url[:45]}...`")
                             
                             try:
                                 browser.page.goto(current_url, timeout=15000)
                                 content_data = browser.get_page_content()
                                 
                                 if content_data and content_data.get('content'):
-                                    stats["pages_with_content"] += 1
+                                    title = content_data.get('title', 'Sin título')
+                                    content = content_data['content']
+                                    url = content_data['url']
                                     
-                                    # Collect media links
+                                    # Collect ALL media (regardless of topic match)
                                     if content_data.get('media_links'):
                                         for media_url in content_data['media_links']:
                                             ml = media_url.lower()
@@ -443,65 +463,64 @@ def dashboard():
                                                 all_media["audios"].append(media_url)
                                             elif '.pdf' in ml:
                                                 all_media["pdfs"].append(media_url)
-                                            else:
-                                                all_media["other"].append(media_url)
                                     
-                                    # Check if content is relevant to the topic
-                                    content_lower = content_data['content'].lower()
-                                    topic_lower = search_topic.lower()
-                                    topic_words = topic_lower.split()
+                                    # Check relevance using fuzzy matching
+                                    is_priority = fuzzy_match(search_topic, content) or fuzzy_match(search_topic, title) or fuzzy_match(search_topic, url)
                                     
-                                    is_relevant = topic_lower in content_lower or any(word in content_lower for word in topic_words)
+                                    # LEARN mode: Index EVERYTHING or only relevant
+                                    should_index = learn_all or is_priority
                                     
-                                    if is_relevant:
-                                        pages.append(content_data)
-                                        stats["pages_relevant"] += 1
-                                        log_area.markdown(f"✅ **[RELEVANTE]** {content_data.get('title', 'Sin título')[:40]}")
-                                        
-                                        # Index immediately
+                                    if should_index and len(content) > 100:  # Avoid empty/tiny pages
+                                        # INDEX TO KNOWLEDGE BASE
                                         st.session_state.rag.add_document(
-                                            content=content_data['content'],
-                                            source_url=content_data['url'],
-                                            title=content_data.get('title', 'Page')
+                                            content=content,
+                                            source_url=url,
+                                            title=title
                                         )
-                                        count += 1
-                                    else:
-                                        log_area.markdown(f"⏭️ Página sin contenido relevante: {content_data.get('title', '')[:30]}")
+                                        stats["pages_indexed"] += 1
+                                        pages_data.append({"title": title, "url": url, "priority": is_priority})
+                                        
+                                        if is_priority:
+                                            stats["pages_prioritized"] += 1
+                                            log_area.markdown(f"⭐ **[PRIORITARIO]** Aprendido: {title[:40]}")
+                                            indexed_list.append(f"⭐ {title[:50]}")
+                                        else:
+                                            log_area.markdown(f"📚 Aprendido: {title[:40]}")
+                                            indexed_list.append(f"📚 {title[:50]}")
                                 
-                                # Get links for next level
+                                # Get links for deeper exploration
                                 if depth < crawl_depth:
                                     links = browser.page.eval_on_selector_all("a", "elements => elements.map(e => e.href)")
-                                    new_links = 0
                                     for link in links:
                                         if "irresistible" in link and link not in visited and "logout" not in link.lower():
                                             if link.startswith("http"):
                                                 to_visit.append((link, depth + 1))
-                                                new_links += 1
-                                    if new_links > 0:
-                                        log_area.markdown(f"🔗 Encontrados {new_links} enlaces para explorar")
                                                 
                             except Exception as e:
                                 stats["errors"].append(f"{current_url[:30]}: {str(e)[:50]}")
-                                log_area.markdown(f"⚠️ Error: {str(e)[:50]}")
+                                log_area.markdown(f"⚠️ Error: {str(e)[:40]}")
                         
                         browser.close()
                         progress_bar.progress(1.0)
                         
-                        # ===== COMPREHENSIVE REPORT =====
+                        # ===== COMPREHENSIVE LEARNING REPORT =====
                         st.markdown("---")
-                        st.markdown("## 📊 Reporte de Investigación")
+                        st.markdown("## 🧠 Reporte de Aprendizaje")
+                        
+                        # Success message
+                        st.success(f"✅ **¡Aprendizaje completado!** Se indexaron {stats['pages_indexed']} páginas a la base de conocimiento.")
                         
                         # Quick stats
                         col1, col2, col3, col4 = st.columns(4)
                         with col1:
-                            st.metric("URLs Visitadas", len(stats["urls_visited"]))
+                            st.metric("🔍 URLs Exploradas", len(stats["urls_visited"]))
                         with col2:
-                            st.metric("Con Contenido", stats["pages_with_content"])
+                            st.metric("📚 Páginas Aprendidas", stats["pages_indexed"])
                         with col3:
-                            st.metric("Relevantes", stats["pages_relevant"])
+                            st.metric("⭐ Prioritarias (tema)", stats["pages_prioritized"])
                         with col4:
                             total_media = len(all_media["videos"]) + len(all_media["audios"]) + len(all_media["pdfs"])
-                            st.metric("Media Encontrada", total_media)
+                            st.metric("🎬 Media Detectada", total_media)
                         
                         # Media breakdown
                         if all_media["videos"] or all_media["audios"] or all_media["pdfs"]:
@@ -586,12 +605,13 @@ def dashboard():
                         else:
                             st.info("ℹ️ No se detectaron archivos multimedia (videos, audios, PDFs) en las páginas visitadas.")
                         
-                        # Pages found
-                        if pages:
-                            st.markdown("### ✅ Páginas Indexadas (Relevantes)")
-                            with st.expander(f"Ver {len(pages)} páginas"):
-                                for p in pages:
-                                    st.markdown(f"- [{p.get('title', 'Sin título')[:50]}]({p['url']})")
+                        # Pages learned
+                        if pages_data:
+                            st.markdown("### 📚 Páginas Indexadas en Base de Conocimiento")
+                            with st.expander(f"Ver {len(pages_data)} páginas aprendidas"):
+                                for p in pages_data:
+                                    icon = "⭐" if p.get('priority') else "📄"
+                                    st.markdown(f"- {icon} [{p.get('title', 'Sin título')[:50]}]({p['url']})")
                         
                         # All URLs visited
                         with st.expander(f"🔍 Todas las URLs visitadas ({len(stats['urls_visited'])})"):

@@ -7,17 +7,14 @@ WORKDIR /app
 # Copy requirements first for caching
 COPY requirements.txt .
 
-# Install Python dependencies explicitly
+# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
-
-# Verify streamlit is installed
-RUN python -m streamlit --version
 
 # Copy application code
 COPY . .
 
-# Create a startup script for better debugging
-RUN echo '#!/bin/bash\necho "Starting Streamlit on port $PORT"\npython -m streamlit run app.py --server.port=$PORT --server.address=0.0.0.0 --server.headless=true --browser.gatherUsageStats=false' > /app/start.sh && chmod +x /app/start.sh
+# Make startup script executable
+RUN chmod +x /app/start.sh
 
 # Use the startup script
 CMD ["/bin/bash", "/app/start.sh"]

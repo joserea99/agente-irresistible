@@ -359,289 +359,254 @@ def dashboard():
                     except Exception as e:
                         st.error(f"Error: {e}")
         
-        # ========== SMART CRAWL ==========
+        # ========== SMART CRAWL (API-BASED) ==========
         st.divider()
-        st.markdown("### 🕷️ Smart Crawl")
-        st.caption("Navega, APRENDE y robustece tu base de conocimiento")
+        st.markdown("### 🧠 Smart Learning")
+        st.caption("Aprende directamente de Brandfolder via API - Sin límites de navegador")
         
-        # Topic input - now used for PRIORITIZATION, not filtering
-        search_topic = st.text_input(
-            "🎯 ¿Sobre qué tema quieres aprender?",
-            placeholder="Ej: grupos pequeños, liderazgo, niños, worship...",
-            key="crawl_topic",
-            help="El sistema aprenderá TODO lo que encuentre, pero priorizará páginas relacionadas con tu tema."
-        )
+        # Check for API key
+        brandfolder_api_key = os.environ.get("BRANDFOLDER_API_KEY", "")
         
-        crawl_depth = st.slider("Profundidad de navegación", 1, 5, 3, key="crawl_depth")
-        max_pages = st.slider("Máximo de páginas a estudiar", 10, 150, 50, key="max_pages")
+        # Allow user to input API key if not in environment
+        if not brandfolder_api_key:
+            st.warning("⚠️ API Key de Brandfolder no configurada")
+            brandfolder_api_key = st.text_input(
+                "🔑 Ingresa tu API Key de Brandfolder",
+                type="password",
+                help="Obtén tu API key en: https://brandfolder.com/profile#integrations"
+            )
         
-        # Learning mode toggle
-        learn_all = st.checkbox("📚 Modo Aprendizaje Total", value=True, 
-            help="Aprende de TODAS las páginas, no solo las que coinciden con el tema")
-        
-        if st.button("🧠 Iniciar Aprendizaje", use_container_width=True):
-            if not search_topic:
-                st.warning("⚠️ Por favor escribe un tema para enfocar el aprendizaje")
-            else:
-                # Statistics tracking
-                stats = {
-                    "urls_visited": [],
-                    "pages_indexed": 0,
-                    "pages_prioritized": 0,  # Related to topic
-                    "errors": []
-                }
-                
-                # Create UI containers
-                progress_bar = st.progress(0)
-                log_area = st.empty()
-                indexed_list = []  # Track what we indexed
-                
-                # Normalize topic for flexible matching
-                def normalize_text(text):
-                    """Remove spaces, lowercase, for flexible matching"""
-                    return ''.join(text.lower().split())
-                
-                def fuzzy_match(topic, content):
-                    """Flexible matching that handles variations"""
-                    topic_normalized = normalize_text(topic)
-                    content_normalized = normalize_text(content)
-                    
-                    # Check normalized match
-                    if topic_normalized in content_normalized:
-                        return True
-                    
-                    # Check each word
-                    topic_words = topic.lower().split()
-                    content_lower = content.lower()
-                    
-                    matches = sum(1 for word in topic_words if word in content_lower)
-                    return matches >= len(topic_words) * 0.5  # At least 50% of words match
-                
-                st.info(f"🎯 Aprendiendo sobre: **{search_topic}** | Modo: {'📚 Aprender Todo' if learn_all else '🔍 Solo Relevantes'}")
-                
+        if brandfolder_api_key:
+            # Topic input for search/prioritization
+            search_topic = st.text_input(
+                "🎯 ¿Qué tema quieres aprender?",
+                placeholder="Ej: Neighborhood to Kitchen, grupos pequeños, liderazgo...",
+                key="api_crawl_topic",
+                help="Busca assets específicos o deja vacío para traer todo"
+            )
+            
+            # Options
+            col_opt1, col_opt2 = st.columns(2)
+            with col_opt1:
+                include_descriptions = st.checkbox("📝 Indexar descripciones", value=True)
+            with col_opt2:
+                auto_transcribe = st.checkbox("🎬 Auto-transcribir media", value=False, 
+                    help="Transcribe videos/audios automáticamente (puede tomar tiempo)")
+            
+            max_assets = st.slider("Máximo de assets a procesar", 10, 200, 50, key="max_api_assets")
+            
+            if st.button("🚀 Iniciar Aprendizaje via API", use_container_width=True):
                 try:
-                    log_area.markdown("🔐 Conectando a irresistible.church...")
-                    browser = BrowserService()
-                    login_success = browser.login(IRRESISTIBLE_EMAIL, IRRESISTIBLE_PASSWORD)
+                    from brandfolder_api import BrandfolderAPI, test_connection
                     
-                    if login_success:
-                        log_area.markdown("✅ Conectado! Iniciando aprendizaje...")
+                    # Progress containers
+                    progress_bar = st.progress(0)
+                    log_area = st.empty()
+                    
+                    log_area.markdown("🔌 Conectando a Brandfolder API...")
+                    
+                    # Test connection first
+                    connection = test_connection(brandfolder_api_key)
+                    
+                    if not connection["success"]:
+                        st.error(f"❌ {connection['message']}")
+                    else:
+                        st.success(connection["message"])
                         
-                        # Crawl and LEARN
-                        visited = set()
-                        to_visit = [(IRRESISTIBLE_URL, 0)]
-                        all_media = {"videos": [], "audios": [], "pdfs": []}
-                        pages_data = []
+                        api = BrandfolderAPI(brandfolder_api_key)
                         
-                        while to_visit and len(visited) < max_pages:
-                            current_url, depth = to_visit.pop(0)
+                        # Find the irresistible church brandfolder
+                        brandfolders = connection["brandfolders"]
+                        target_bf = None
+                        
+                        for bf in brandfolders:
+                            if "irresistible" in bf["name"].lower() or "irresistible" in bf.get("slug", "").lower():
+                                target_bf = bf
+                                break
+                        
+                        if not target_bf and brandfolders:
+                            target_bf = brandfolders[0]  # Use first available
+                        
+                        if not target_bf:
+                            st.error("❌ No se encontraron brandfolders accesibles")
+                        else:
+                            st.info(f"📂 Brandfolder: **{target_bf['name']}**")
+                            log_area.markdown(f"📂 Usando brandfolder: {target_bf['name']}")
                             
-                            if current_url in visited or depth > crawl_depth:
-                                continue
+                            # Get content
+                            log_area.markdown("📥 Obteniendo assets...")
                             
-                            visited.add(current_url)
-                            stats["urls_visited"].append(current_url)
-                            progress_bar.progress(min(len(visited) / max_pages, 0.99))
-                            log_area.markdown(f"🧠 **[{len(visited)}/{max_pages}]** Estudiando: `{current_url[:45]}...`")
+                            if search_topic:
+                                assets = api.search_assets(target_bf["id"], search_topic)
+                                log_area.markdown(f"🔍 Búsqueda: '{search_topic}' - {len(assets)} resultados")
+                            else:
+                                assets = api.get_assets(brandfolder_id=target_bf["id"])
+                                log_area.markdown(f"📚 Cargando todos los assets: {len(assets)} encontrados")
                             
-                            try:
-                                # Ensure we're still logged in before each navigation
-                                browser.ensure_logged_in()
-                                browser.page.goto(current_url, timeout=15000)
-                                
-                                # Skip if we got redirected to login
-                                if "sign" in browser.page.url.lower() or "login" in browser.page.url.lower():
-                                    log_area.markdown(f"⚠️ Redirigido al login, intentando re-autenticar...")
-                                    browser.ensure_logged_in()
-                                    continue
-                                
-                                content_data = browser.get_page_content()
-                                
-                                if content_data and content_data.get('content'):
-                                    title = content_data.get('title', 'Sin título')
-                                    content = content_data['content']
-                                    url = content_data['url']
+                            # Limit assets
+                            assets = assets[:max_assets]
+                            
+                            # Process assets
+                            stats = {
+                                "total": len(assets),
+                                "indexed": 0,
+                                "videos": [],
+                                "audios": [],
+                                "documents": [],
+                                "errors": []
+                            }
+                            
+                            indexed_items = []
+                            
+                            for idx, asset in enumerate(assets):
+                                try:
+                                    info = api.extract_asset_info(asset)
+                                    name = info.get("name", "Untitled")
+                                    description = info.get("description", "")
+                                    ext = (info.get("extension") or "").lower()
                                     
-                                    # Collect ALL media (regardless of topic match)
-                                    if content_data.get('media_links'):
-                                        for media_url in content_data['media_links']:
-                                            ml = media_url.lower()
-                                            if any(ext in ml for ext in ['.mp4', '.mov', '.webm', '.avi']):
-                                                all_media["videos"].append(media_url)
-                                            elif any(ext in ml for ext in ['.mp3', '.wav', '.m4a', '.ogg']):
-                                                all_media["audios"].append(media_url)
-                                            elif '.pdf' in ml:
-                                                all_media["pdfs"].append(media_url)
+                                    progress_bar.progress((idx + 1) / len(assets))
+                                    log_area.markdown(f"📄 **[{idx+1}/{len(assets)}]** Procesando: {name[:40]}...")
                                     
-                                    # Check relevance using fuzzy matching
-                                    is_priority = fuzzy_match(search_topic, content) or fuzzy_match(search_topic, title) or fuzzy_match(search_topic, url)
+                                    # Categorize by type
+                                    if ext in ["mp4", "mov", "avi", "webm"]:
+                                        stats["videos"].append(info)
+                                    elif ext in ["mp3", "wav", "m4a", "ogg"]:
+                                        stats["audios"].append(info)
+                                    elif ext in ["pdf", "doc", "docx", "ppt", "pptx"]:
+                                        stats["documents"].append(info)
                                     
-                                    # LEARN mode: Index EVERYTHING or only relevant
-                                    should_index = learn_all or is_priority
-                                    
-                                    if should_index and len(content) > 100:  # Avoid empty/tiny pages
-                                        # INDEX TO KNOWLEDGE BASE
+                                    # Index to knowledge base
+                                    if include_descriptions and (name or description):
+                                        content = f"ASSET: {name}\n"
+                                        if description:
+                                            content += f"DESCRIPCIÓN: {description}\n"
+                                        content += f"TIPO: {ext or 'desconocido'}\n"
+                                        
+                                        # Add attachment info
+                                        for att in info.get("attachments", []):
+                                            content += f"ARCHIVO: {att.get('filename', 'unknown')}\n"
+                                            if att.get('url'):
+                                                content += f"URL: {att['url']}\n"
+                                        
                                         st.session_state.rag.add_document(
                                             content=content,
-                                            source_url=url,
-                                            title=title
+                                            source_url=f"brandfolder://{target_bf['id']}/{info['id']}",
+                                            title=name
                                         )
-                                        stats["pages_indexed"] += 1
-                                        pages_data.append({"title": title, "url": url, "priority": is_priority})
+                                        stats["indexed"] += 1
+                                        indexed_items.append({"name": name, "type": ext})
+                                        log_area.markdown(f"✅ Indexado: {name[:40]}")
                                         
-                                        if is_priority:
-                                            stats["pages_prioritized"] += 1
-                                            log_area.markdown(f"⭐ **[PRIORITARIO]** Aprendido: {title[:40]}")
-                                            indexed_list.append(f"⭐ {title[:50]}")
-                                        else:
-                                            log_area.markdown(f"📚 Aprendido: {title[:40]}")
-                                            indexed_list.append(f"📚 {title[:50]}")
+                                except Exception as e:
+                                    stats["errors"].append(f"{name}: {str(e)[:50]}")
+                            
+                            progress_bar.progress(1.0)
+                            
+                            # ===== LEARNING REPORT =====
+                            st.markdown("---")
+                            st.markdown("## 🧠 Reporte de Aprendizaje")
+                            st.success(f"✅ **¡Completado!** Se indexaron {stats['indexed']} assets a la base de conocimiento.")
+                            
+                            # Stats
+                            col1, col2, col3, col4 = st.columns(4)
+                            with col1:
+                                st.metric("📊 Total Assets", stats["total"])
+                            with col2:
+                                st.metric("📚 Indexados", stats["indexed"])
+                            with col3:
+                                st.metric("🎬 Videos", len(stats["videos"]))
+                            with col4:
+                                st.metric("📄 Docs", len(stats["documents"]))
+                            
+                            # Media found
+                            if stats["videos"] or stats["audios"]:
+                                st.markdown("### 🎬 Multimedia Encontrada")
                                 
-                                # Get links for deeper exploration
-                                if depth < crawl_depth:
-                                    links = browser.page.eval_on_selector_all("a", "elements => elements.map(e => e.href)")
-                                    for link in links:
-                                        if "irresistible" in link and link not in visited and "logout" not in link.lower():
-                                            if link.startswith("http"):
-                                                to_visit.append((link, depth + 1))
-                                                
-                            except Exception as e:
-                                stats["errors"].append(f"{current_url[:30]}: {str(e)[:50]}")
-                                log_area.markdown(f"⚠️ Error: {str(e)[:40]}")
-                        
-                        browser.close()
-                        progress_bar.progress(1.0)
-                        
-                        # ===== COMPREHENSIVE LEARNING REPORT =====
-                        st.markdown("---")
-                        st.markdown("## 🧠 Reporte de Aprendizaje")
-                        
-                        # Success message
-                        st.success(f"✅ **¡Aprendizaje completado!** Se indexaron {stats['pages_indexed']} páginas a la base de conocimiento.")
-                        
-                        # Quick stats
-                        col1, col2, col3, col4 = st.columns(4)
-                        with col1:
-                            st.metric("🔍 URLs Exploradas", len(stats["urls_visited"]))
-                        with col2:
-                            st.metric("📚 Páginas Aprendidas", stats["pages_indexed"])
-                        with col3:
-                            st.metric("⭐ Prioritarias (tema)", stats["pages_prioritized"])
-                        with col4:
-                            total_media = len(all_media["videos"]) + len(all_media["audios"]) + len(all_media["pdfs"])
-                            st.metric("🎬 Media Detectada", total_media)
-                        
-                        # Media breakdown
-                        if all_media["videos"] or all_media["audios"] or all_media["pdfs"]:
-                            st.markdown("### 📹 Archivos Multimedia Detectados")
-                            
-                            # Store media in session for later transcription
-                            st.session_state["found_media"] = all_media
-                            
-                            if all_media["videos"]:
-                                with st.expander(f"🎬 Videos ({len(all_media['videos'])})"):
-                                    for v in all_media["videos"][:20]:
-                                        st.markdown(f"- `{v.split('/')[-1]}`")
-                            
-                            if all_media["audios"]:
-                                with st.expander(f"🎧 Audios ({len(all_media['audios'])})"):
-                                    for a in all_media["audios"][:20]:
-                                        st.markdown(f"- `{a.split('/')[-1]}`")
-                            
-                            if all_media["pdfs"]:
-                                with st.expander(f"📄 PDFs ({len(all_media['pdfs'])})"):
-                                    for p in all_media["pdfs"][:20]:
-                                        st.markdown(f"- `{p.split('/')[-1]}`")
-                            
-                            # Transcription section
-                            st.markdown("### 🎧 Transcripción de Multimedia")
-                            st.caption("Descarga y transcribe videos/audios usando Gemini AI")
-                            
-                            transcribe_videos = all_media["videos"][:5]  # Limit to 5
-                            transcribe_audios = all_media["audios"][:5]
-                            
-                            if transcribe_videos or transcribe_audios:
-                                total_to_transcribe = len(transcribe_videos) + len(transcribe_audios)
-                                st.info(f"📝 {total_to_transcribe} archivos listos para transcribir (máx 5 de cada tipo)")
+                                if stats["videos"]:
+                                    with st.expander(f"🎬 Videos ({len(stats['videos'])})"):
+                                        for v in stats["videos"][:20]:
+                                            st.markdown(f"- **{v['name']}**")
+                                            for att in v.get("attachments", []):
+                                                if att.get("url"):
+                                                    st.caption(f"  📎 {att.get('filename', 'file')}")
                                 
-                                if st.button("🚀 Transcribir Multimedia", key="transcribe_media_btn"):
-                                    transcribe_progress = st.progress(0)
-                                    transcribe_log = st.empty()
-                                    transcribed_count = 0
-                                    total = len(transcribe_videos) + len(transcribe_audios)
+                                if stats["audios"]:
+                                    with st.expander(f"🎧 Audios ({len(stats['audios'])})"):
+                                        for a in stats["audios"][:20]:
+                                            st.markdown(f"- **{a['name']}**")
+                                
+                                # Store for transcription
+                                st.session_state["api_found_media"] = {
+                                    "videos": stats["videos"],
+                                    "audios": stats["audios"]
+                                }
+                                
+                                # Transcription button
+                                if stats["videos"] or stats["audios"]:
+                                    st.markdown("### 🎧 Transcripción de Multimedia")
+                                    total_media = len(stats["videos"]) + len(stats["audios"])
+                                    st.info(f"📝 {total_media} archivos multimedia disponibles para transcripción")
                                     
-                                    # Transcribe videos
-                                    for idx, video_url in enumerate(transcribe_videos):
-                                        transcribe_log.markdown(f"🎬 Descargando video: `{video_url.split('/')[-1]}`...")
-                                        try:
-                                            transcript = process_media_url(video_url)
-                                            if transcript and "Error" not in transcript:
-                                                st.session_state.rag.add_document(
-                                                    content=f"TRANSCRIPCIÓN DE VIDEO: {video_url}\n\n{transcript}",
-                                                    source_url=video_url,
-                                                    title=f"Video: {video_url.split('/')[-1]}"
-                                                )
-                                                transcribed_count += 1
-                                                transcribe_log.markdown(f"✅ Video transcrito: `{video_url.split('/')[-1]}`")
-                                            else:
-                                                transcribe_log.markdown(f"⚠️ Error en video: {transcript[:50] if transcript else 'Unknown error'}")
-                                        except Exception as e:
-                                            transcribe_log.markdown(f"❌ Error: {str(e)[:50]}")
-                                        transcribe_progress.progress((idx + 1) / total)
-                                    
-                                    # Transcribe audios
-                                    for idx, audio_url in enumerate(transcribe_audios):
-                                        transcribe_log.markdown(f"🎧 Descargando audio: `{audio_url.split('/')[-1]}`...")
-                                        try:
-                                            transcript = process_media_url(audio_url)
-                                            if transcript and "Error" not in transcript:
-                                                st.session_state.rag.add_document(
-                                                    content=f"TRANSCRIPCIÓN DE AUDIO: {audio_url}\n\n{transcript}",
-                                                    source_url=audio_url,
-                                                    title=f"Audio: {audio_url.split('/')[-1]}"
-                                                )
-                                                transcribed_count += 1
-                                                transcribe_log.markdown(f"✅ Audio transcrito: `{audio_url.split('/')[-1]}`")
-                                            else:
-                                                transcribe_log.markdown(f"⚠️ Error en audio: {transcript[:50] if transcript else 'Unknown error'}")
-                                        except Exception as e:
-                                            transcribe_log.markdown(f"❌ Error: {str(e)[:50]}")
-                                        transcribe_progress.progress((len(transcribe_videos) + idx + 1) / total)
-                                    
-                                    transcribe_progress.progress(1.0)
-                                    st.success(f"🎉 ¡Transcripción completada! {transcribed_count}/{total} archivos procesados.")
-                                    st.balloons()
-                        else:
-                            st.info("ℹ️ No se detectaron archivos multimedia (videos, audios, PDFs) en las páginas visitadas.")
-                        
-                        # Pages learned
-                        if pages_data:
-                            st.markdown("### 📚 Páginas Indexadas en Base de Conocimiento")
-                            with st.expander(f"Ver {len(pages_data)} páginas aprendidas"):
-                                for p in pages_data:
-                                    icon = "⭐" if p.get('priority') else "📄"
-                                    st.markdown(f"- {icon} [{p.get('title', 'Sin título')[:50]}]({p['url']})")
-                        
-                        # All URLs visited
-                        with st.expander(f"🔍 Todas las URLs visitadas ({len(stats['urls_visited'])})"):
-                            for url in stats["urls_visited"]:
-                                st.markdown(f"- `{url[:70]}...`")
-                        
-                        # Errors if any
-                        if stats["errors"]:
-                            with st.expander(f"⚠️ Errores ({len(stats['errors'])})"):
-                                for err in stats["errors"]:
-                                    st.markdown(f"- {err}")
-                        
-                        # Final verdict
-                        if stats["pages_indexed"] == 0:
-                            st.warning(f"🔍 No se pudieron indexar páginas. El navegador puede no estar accediendo correctamente al contenido.")
-                        else:
+                                    if st.button("🚀 Transcribir Multimedia", key="api_transcribe_btn"):
+                                        trans_progress = st.progress(0)
+                                        trans_log = st.empty()
+                                        transcribed = 0
+                                        
+                                        all_media = stats["videos"][:5] + stats["audios"][:5]
+                                        
+                                        for i, media in enumerate(all_media):
+                                            trans_log.markdown(f"🎬 Procesando: {media['name'][:40]}...")
+                                            
+                                            for att in media.get("attachments", []):
+                                                att_url = att.get("url")
+                                                if att_url:
+                                                    try:
+                                                        # Download and transcribe
+                                                        local_path = api.download_attachment(att_url)
+                                                        if local_path:
+                                                            transcript = process_media_url(local_path)
+                                                            if transcript and "Error" not in transcript:
+                                                                st.session_state.rag.add_document(
+                                                                    content=f"TRANSCRIPCIÓN: {media['name']}\n\n{transcript}",
+                                                                    source_url=att_url,
+                                                                    title=f"Transcripción: {media['name']}"
+                                                                )
+                                                                transcribed += 1
+                                                                trans_log.markdown(f"✅ Transcrito: {media['name'][:40]}")
+                                                            # Clean up
+                                                            os.remove(local_path)
+                                                    except Exception as e:
+                                                        trans_log.markdown(f"⚠️ Error: {str(e)[:40]}")
+                                            
+                                            trans_progress.progress((i + 1) / len(all_media))
+                                        
+                                        trans_progress.progress(1.0)
+                                        st.success(f"🎉 ¡Transcripción completada! {transcribed} archivos procesados.")
+                                        st.balloons()
+                            
+                            # Documents
+                            if stats["documents"]:
+                                with st.expander(f"📄 Documentos ({len(stats['documents'])})"):
+                                    for d in stats["documents"][:20]:
+                                        st.markdown(f"- **{d['name']}** (.{d.get('extension', '?')})")
+                            
+                            # Indexed items
+                            if indexed_items:
+                                with st.expander(f"📚 Items Indexados ({len(indexed_items)})"):
+                                    for item in indexed_items[:30]:
+                                        st.markdown(f"- {item['name'][:50]} ({item['type']})")
+                            
+                            # Errors
+                            if stats["errors"]:
+                                with st.expander(f"⚠️ Errores ({len(stats['errors'])})"):
+                                    for err in stats["errors"]:
+                                        st.markdown(f"- {err}")
+                            
                             st.balloons()
                             
-                    else:
-                        st.error("❌ Error de login a irresistible.church")
-                        
+                except ImportError:
+                    st.error("❌ Error: brandfolder_api.py no encontrado. Contacta al administrador.")
                 except Exception as e:
                     st.error(f"❌ Error: {e}")
         

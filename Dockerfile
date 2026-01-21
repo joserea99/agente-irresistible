@@ -45,5 +45,5 @@ RUN playwright install chromium
 # Copy application code
 COPY . .
 
-# Start Streamlit - shell form for variable expansion
-CMD /bin/bash -c "python -m streamlit run app.py --server.address=0.0.0.0 --server.port=${PORT:-8501} --server.headless=true"
+# Use exec form with bash for proper variable expansion
+CMD ["bash", "-c", "echo '=== STARTING ===' && echo \"PORT=$PORT\" && python -m streamlit run app.py --server.address=0.0.0.0 --server.port=${PORT:-8501} --server.headless=true 2>&1"]

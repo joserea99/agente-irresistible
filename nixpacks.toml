@@ -1,0 +1,8 @@
+[phases.setup]
+nixPkgs = ["python311", "chromium", "glib", "nss", "xorg.libX11"]
+
+[phases.install]
+cmds = ["python -m venv /opt/venv && . /opt/venv/bin/activate && pip install -r requirements.txt", "playwright install chromium"]
+
+[start]
+cmd = ". /opt/venv/bin/activate && streamlit run app.py --server.port=$PORT --server.address=0.0.0.0"

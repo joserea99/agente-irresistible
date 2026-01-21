@@ -1,18 +1,49 @@
-# Use Microsoft's official Playwright image
-FROM mcr.microsoft.com/playwright/python:v1.49.0-noble
+# Use clean Python image
+FROM python:3.11-slim
+
+# Install system dependencies for Playwright/Chromium
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    wget \
+    gnupg \
+    ca-certificates \
+    fonts-liberation \
+    libasound2 \
+    libatk-bridge2.0-0 \
+    libatk1.0-0 \
+    libatspi2.0-0 \
+    libcairo2 \
+    libcups2 \
+    libdbus-1-3 \
+    libdrm2 \
+    libgbm1 \
+    libglib2.0-0 \
+    libgtk-3-0 \
+    libnspr4 \
+    libnss3 \
+    libpango-1.0-0 \
+    libx11-6 \
+    libxcb1 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxext6 \
+    libxfixes3 \
+    libxkbcommon0 \
+    libxrandr2 \
+    xdg-utils \
+    && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /app
 
-# Skip browser download at runtime
-ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
-
-# Copy and install dependencies
+# Copy and install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Install Playwright browsers DURING BUILD (not runtime)
+RUN playwright install chromium
 
 # Copy application code
 COPY . .
 
-# Use shell form so $PORT expands correctly
+# Start Streamlit - shell form for variable expansion
 CMD /bin/bash -c "python -m streamlit run app.py --server.address=0.0.0.0 --server.port=${PORT:-8501} --server.headless=true"

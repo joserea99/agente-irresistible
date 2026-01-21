@@ -507,6 +507,9 @@ def dashboard():
                         if all_media["videos"] or all_media["audios"] or all_media["pdfs"]:
                             st.markdown("### 📹 Archivos Multimedia Detectados")
                             
+                            # Store media in session for later transcription
+                            st.session_state["found_media"] = all_media
+                            
                             if all_media["videos"]:
                                 with st.expander(f"🎬 Videos ({len(all_media['videos'])})"):
                                     for v in all_media["videos"][:20]:
@@ -521,6 +524,65 @@ def dashboard():
                                 with st.expander(f"📄 PDFs ({len(all_media['pdfs'])})"):
                                     for p in all_media["pdfs"][:20]:
                                         st.markdown(f"- `{p.split('/')[-1]}`")
+                            
+                            # Transcription section
+                            st.markdown("### 🎧 Transcripción de Multimedia")
+                            st.caption("Descarga y transcribe videos/audios usando Gemini AI")
+                            
+                            transcribe_videos = all_media["videos"][:5]  # Limit to 5
+                            transcribe_audios = all_media["audios"][:5]
+                            
+                            if transcribe_videos or transcribe_audios:
+                                total_to_transcribe = len(transcribe_videos) + len(transcribe_audios)
+                                st.info(f"📝 {total_to_transcribe} archivos listos para transcribir (máx 5 de cada tipo)")
+                                
+                                if st.button("🚀 Transcribir Multimedia", key="transcribe_media_btn"):
+                                    transcribe_progress = st.progress(0)
+                                    transcribe_log = st.empty()
+                                    transcribed_count = 0
+                                    total = len(transcribe_videos) + len(transcribe_audios)
+                                    
+                                    # Transcribe videos
+                                    for idx, video_url in enumerate(transcribe_videos):
+                                        transcribe_log.markdown(f"🎬 Descargando video: `{video_url.split('/')[-1]}`...")
+                                        try:
+                                            transcript = process_media_url(video_url)
+                                            if transcript and "Error" not in transcript:
+                                                st.session_state.rag.add_document(
+                                                    content=f"TRANSCRIPCIÓN DE VIDEO: {video_url}\n\n{transcript}",
+                                                    source_url=video_url,
+                                                    title=f"Video: {video_url.split('/')[-1]}"
+                                                )
+                                                transcribed_count += 1
+                                                transcribe_log.markdown(f"✅ Video transcrito: `{video_url.split('/')[-1]}`")
+                                            else:
+                                                transcribe_log.markdown(f"⚠️ Error en video: {transcript[:50] if transcript else 'Unknown error'}")
+                                        except Exception as e:
+                                            transcribe_log.markdown(f"❌ Error: {str(e)[:50]}")
+                                        transcribe_progress.progress((idx + 1) / total)
+                                    
+                                    # Transcribe audios
+                                    for idx, audio_url in enumerate(transcribe_audios):
+                                        transcribe_log.markdown(f"🎧 Descargando audio: `{audio_url.split('/')[-1]}`...")
+                                        try:
+                                            transcript = process_media_url(audio_url)
+                                            if transcript and "Error" not in transcript:
+                                                st.session_state.rag.add_document(
+                                                    content=f"TRANSCRIPCIÓN DE AUDIO: {audio_url}\n\n{transcript}",
+                                                    source_url=audio_url,
+                                                    title=f"Audio: {audio_url.split('/')[-1]}"
+                                                )
+                                                transcribed_count += 1
+                                                transcribe_log.markdown(f"✅ Audio transcrito: `{audio_url.split('/')[-1]}`")
+                                            else:
+                                                transcribe_log.markdown(f"⚠️ Error en audio: {transcript[:50] if transcript else 'Unknown error'}")
+                                        except Exception as e:
+                                            transcribe_log.markdown(f"❌ Error: {str(e)[:50]}")
+                                        transcribe_progress.progress((len(transcribe_videos) + idx + 1) / total)
+                                    
+                                    transcribe_progress.progress(1.0)
+                                    st.success(f"🎉 ¡Transcripción completada! {transcribed_count}/{total} archivos procesados.")
+                                    st.balloons()
                         else:
                             st.info("ℹ️ No se detectaron archivos multimedia (videos, audios, PDFs) en las páginas visitadas.")
                         

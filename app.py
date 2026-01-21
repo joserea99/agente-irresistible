@@ -364,32 +364,102 @@ def dashboard():
         st.markdown("### 🕷️ Smart Crawl")
         st.caption("Navega y aprende del sitio Irresistible Church")
         
+        # Topic input for targeted search
+        search_topic = st.text_input(
+            "🔍 ¿Qué tema quieres investigar?",
+            placeholder="Ej: grupos pequeños, liderazgo, niños, worship...",
+            key="crawl_topic"
+        )
+        
+        crawl_depth = st.slider("Profundidad de búsqueda", 1, 5, 2, key="crawl_depth")
+        max_pages = st.slider("Máximo de páginas", 5, 100, 20, key="max_pages")
+        
         if st.button("🚀 Iniciar Smart Crawl", use_container_width=True):
-            with st.spinner("🔐 Conectando a irresistible.church..."):
+            if not search_topic:
+                st.warning("⚠️ Por favor escribe un tema para investigar")
+            else:
+                # Create a status container for real-time updates
+                status_container = st.container()
+                progress_bar = st.progress(0)
+                log_area = st.empty()
+                
+                with status_container:
+                    st.info(f"🔍 Buscando información sobre: **{search_topic}**")
+                
                 try:
+                    log_area.markdown("🔐 Conectando a irresistible.church...")
                     browser = BrowserService()
                     login_success = browser.login(IRRESISTIBLE_EMAIL, IRRESISTIBLE_PASSWORD)
                     
                     if login_success:
-                        st.success("✅ Conectado!")
+                        log_area.markdown("✅ Conectado! Iniciando navegación...")
                         
-                        with st.spinner("🕷️ Navegando y aprendiendo... (esto puede tomar varios minutos)"):
-                            pages = browser.crawl_recursive(IRRESISTIBLE_URL, max_depth=3, max_pages=50)
-                            browser.close()
+                        # Custom crawl with logging
+                        pages = []
+                        visited = set()
+                        to_visit = [(IRRESISTIBLE_URL, 0)]
+                        count = 0
+                        
+                        while to_visit and count < max_pages:
+                            current_url, depth = to_visit.pop(0)
                             
-                            count = 0
-                            for p in pages:
-                                if p.get('content'):
-                                    st.session_state.rag.add_document(
-                                        content=p['content'],
-                                        source_url=p['url'],
-                                        title=p.get('title', 'Page')
-                                    )
-                                    count += 1
+                            if current_url in visited or depth > crawl_depth:
+                                continue
                             
-                            st.success(f"✅ ¡Aprendí de {count} páginas!")
+                            visited.add(current_url)
+                            progress_bar.progress(count / max_pages)
+                            log_area.markdown(f"🕷️ Visitando: `{current_url[:60]}...`")
                             
-                            # Procesar media encontrada
+                            try:
+                                browser.page.goto(current_url, timeout=15000)
+                                content_data = browser.get_page_content()
+                                
+                                if content_data and content_data.get('content'):
+                                    # Check if content is relevant to the topic
+                                    content_lower = content_data['content'].lower()
+                                    topic_lower = search_topic.lower()
+                                    
+                                    if topic_lower in content_lower or any(word in content_lower for word in topic_lower.split()):
+                                        pages.append(content_data)
+                                        log_area.markdown(f"✅ **Encontrado contenido relevante:** {content_data.get('title', 'Sin título')[:50]}")
+                                        
+                                        # Index immediately
+                                        st.session_state.rag.add_document(
+                                            content=content_data['content'],
+                                            source_url=content_data['url'],
+                                            title=content_data.get('title', 'Page')
+                                        )
+                                        count += 1
+                                
+                                # Get links for next level
+                                if depth < crawl_depth:
+                                    links = browser.page.eval_on_selector_all("a", "elements => elements.map(e => e.href)")
+                                    for link in links:
+                                        if "irresistible" in link and link not in visited and "logout" not in link.lower():
+                                            if link.startswith("http"):
+                                                to_visit.append((link, depth + 1))
+                                                
+                            except Exception as e:
+                                log_area.markdown(f"⚠️ Error en {current_url[:30]}: {str(e)[:50]}")
+                        
+                        browser.close()
+                        progress_bar.progress(1.0)
+                        
+                        # Summary
+                        if pages:
+                            st.success(f"""
+                            🎉 **¡Investigación completada!**
+                            - Páginas visitadas: {len(visited)}
+                            - Contenido relevante encontrado: {len(pages)}
+                            - Tema: {search_topic}
+                            """)
+                            
+                            # Show what was found
+                            with st.expander("📋 Páginas indexadas"):
+                                for p in pages:
+                                    st.markdown(f"- [{p.get('title', 'Sin título')[:50]}]({p['url']})")
+                            
+                            # Check for media
                             media_queue = []
                             for p in pages:
                                 if p.get('media_links'):
@@ -398,23 +468,9 @@ def dashboard():
                             media_queue = list(set(media_queue))
                             
                             if media_queue:
-                                st.info(f"📹 Encontré {len(media_queue)} archivos multimedia")
-                                
-                                if st.button("🎧 Transcribir Media", key="transcribe_btn"):
-                                    progress = st.progress(0)
-                                    transcribed = 0
-                                    for idx, m_url in enumerate(media_queue):
-                                        with st.spinner(f"Transcribiendo {m_url.split('/')[-1]}..."):
-                                            transcript = process_media_url(m_url)
-                                            if transcript and "Error" not in transcript:
-                                                st.session_state.rag.add_document(
-                                                    content=f"TRANSCRIPCIÓN DE {m_url}:\n\n{transcript}",
-                                                    source_url=m_url,
-                                                    title=f"Media: {m_url.split('/')[-1]}"
-                                                )
-                                                transcribed += 1
-                                        progress.progress((idx + 1) / len(media_queue))
-                                    st.success(f"✅ Transcribí {transcribed} archivos")
+                                st.info(f"📹 Encontré {len(media_queue)} archivos multimedia relacionados")
+                        else:
+                            st.warning(f"No encontré contenido específico sobre '{search_topic}'. Intenta con otros términos.")
                     else:
                         st.error("❌ Error de login a irresistible.church")
                         

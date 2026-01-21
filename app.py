@@ -4,12 +4,19 @@ import os
 from database import verify_user, add_user, save_message, get_chat_history, init_db
 from agent_logic import AgentEngine
 from rag_manager import RAGManager
+from browser_service import BrowserService
+from media_processor import process_media_url
 from personas import PERSONAS
 from dojo_scenarios import DOJO_SCENARIOS
 from utils import create_docx
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# ============== IRRESISTIBLE CHURCH CREDENTIALS ==============
+IRRESISTIBLE_EMAIL = "jose.rea@lbne.org"
+IRRESISTIBLE_PASSWORD = "jajciX-pohto7-dyd"
+IRRESISTIBLE_URL = "https://my.irresistible.church/irresistiblechurchnetwork"
 
 # ============== PREMIUM CSS ==============
 CUSTOM_CSS = """
@@ -351,6 +358,68 @@ def dashboard():
                             st.success("✅ Indexado!")
                     except Exception as e:
                         st.error(f"Error: {e}")
+        
+        # ========== SMART CRAWL ==========
+        st.divider()
+        st.markdown("### 🕷️ Smart Crawl")
+        st.caption("Navega y aprende del sitio Irresistible Church")
+        
+        if st.button("🚀 Iniciar Smart Crawl", use_container_width=True):
+            with st.spinner("🔐 Conectando a irresistible.church..."):
+                try:
+                    browser = BrowserService()
+                    login_success = browser.login(IRRESISTIBLE_EMAIL, IRRESISTIBLE_PASSWORD)
+                    
+                    if login_success:
+                        st.success("✅ Conectado!")
+                        
+                        with st.spinner("🕷️ Navegando y aprendiendo... (esto puede tomar varios minutos)"):
+                            pages = browser.crawl_recursive(IRRESISTIBLE_URL, max_depth=3, max_pages=50)
+                            browser.close()
+                            
+                            count = 0
+                            for p in pages:
+                                if p.get('content'):
+                                    st.session_state.rag.add_document(
+                                        content=p['content'],
+                                        source_url=p['url'],
+                                        title=p.get('title', 'Page')
+                                    )
+                                    count += 1
+                            
+                            st.success(f"✅ ¡Aprendí de {count} páginas!")
+                            
+                            # Procesar media encontrada
+                            media_queue = []
+                            for p in pages:
+                                if p.get('media_links'):
+                                    media_queue.extend(p['media_links'])
+                            
+                            media_queue = list(set(media_queue))
+                            
+                            if media_queue:
+                                st.info(f"📹 Encontré {len(media_queue)} archivos multimedia")
+                                
+                                if st.button("🎧 Transcribir Media", key="transcribe_btn"):
+                                    progress = st.progress(0)
+                                    transcribed = 0
+                                    for idx, m_url in enumerate(media_queue):
+                                        with st.spinner(f"Transcribiendo {m_url.split('/')[-1]}..."):
+                                            transcript = process_media_url(m_url)
+                                            if transcript and "Error" not in transcript:
+                                                st.session_state.rag.add_document(
+                                                    content=f"TRANSCRIPCIÓN DE {m_url}:\n\n{transcript}",
+                                                    source_url=m_url,
+                                                    title=f"Media: {m_url.split('/')[-1]}"
+                                                )
+                                                transcribed += 1
+                                        progress.progress((idx + 1) / len(media_queue))
+                                    st.success(f"✅ Transcribí {transcribed} archivos")
+                    else:
+                        st.error("❌ Error de login a irresistible.church")
+                        
+                except Exception as e:
+                    st.error(f"❌ Error: {e}")
         
         st.divider()
         if st.button("🚪 Cerrar Sesión", use_container_width=True):

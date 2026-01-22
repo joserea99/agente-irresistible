@@ -3,7 +3,12 @@ from chromadb.utils import embedding_functions
 import os
 
 # Persistent storage for the "Brain"
-CHROMA_PATH = "irresistible_brain_db"
+# In Railway with a Volume mounted at /app/brain_data
+if os.path.exists("/app/brain_data"):
+    CHROMA_PATH = "/app/brain_data/irresistible_brain_db"
+else:
+    # Local development
+    CHROMA_PATH = "irresistible_brain_db"
 
 class RAGManager:
     def __init__(self):

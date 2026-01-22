@@ -1,4 +1,17 @@
+[server]
+# Disable CORS to avoid connection issues on Railway
+enableCORS = false
+enableXsrfProtection = false
+
+# Keep connections alive longer
+runOnSave = false
+
+[browser]
+# Disable stats gathering
+gatherUsageStats = false
+
 [theme]
+# Custom dark theme
 primaryColor = "#6366f1"
 backgroundColor = "#0f0f23"
 secondaryBackgroundColor = "#1a1a2e"

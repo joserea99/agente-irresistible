@@ -4,7 +4,11 @@ import os
 from datetime import datetime
 
 # Use SQLite for local development, easy to switch to Postgres later
-DB_PATH = "irresistible_app.db"
+# In Railway with a Volume mounted at /app/brain_data
+if os.path.exists("/app/brain_data"):
+    DB_PATH = "/app/brain_data/irresistible_app.db"
+else:
+    DB_PATH = "irresistible_app.db"
 
 def init_db():
     """Initializes the database with users and chat_history tables."""

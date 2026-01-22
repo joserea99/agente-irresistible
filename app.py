@@ -350,12 +350,15 @@ def dashboard():
                             text = uploaded_file.read().decode("utf-8")
                         
                         if text:
-                            st.session_state.rag.add_document(
+                            added = st.session_state.rag.add_document(
                                 content=text,
                                 source_url=uploaded_file.name,
                                 title=f"File: {uploaded_file.name}"
                             )
-                            st.success("✅ Indexado!")
+                            if added:
+                                st.success("✅ Indexado exitosamente!")
+                            else:
+                                st.info("ℹ️ Documento ya existente en memoria (se omitió duplicado).")
                     except Exception as e:
                         st.error(f"Error: {e}")
         
@@ -489,14 +492,19 @@ def dashboard():
                                             if att.get('url'):
                                                 content += f"URL: {att['url']}\n"
                                         
-                                        st.session_state.rag.add_document(
+                                        added = st.session_state.rag.add_document(
                                             content=content,
                                             source_url=f"brandfolder://{target_bf['id']}/{info['id']}",
                                             title=name
                                         )
-                                        stats["indexed"] += 1
+                                        
                                         indexed_items.append({"name": name, "type": ext})
-                                        log_area.markdown(f"✅ Indexado: {name[:40]}")
+                                        
+                                        if added:
+                                            stats["indexed"] += 1
+                                            log_area.markdown(f"✅ Indexado: {name[:40]}")
+                                        else:
+                                            log_area.markdown(f"ℹ️ Ya existe: {name[:40]}")
                                         
                                 except Exception as e:
                                     stats["errors"].append(f"{name}: {str(e)[:50]}")

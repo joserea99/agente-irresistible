@@ -19,8 +19,20 @@ class RAGManager:
             embedding_function=self.embedding_fn
         )
 
+    def document_exists(self, source_url):
+        """Checks if a document with the given source_url already exists."""
+        results = self.collection.get(
+            where={"source": source_url},
+            limit=1
+        )
+        return len(results["ids"]) > 0
+
     def add_document(self, content, source_url, title="Unknown"):
-        """Ingests a document into the brain."""
+        """Ingests a document into the brain. Returns True if added, False if skipped (exists)."""
+        # Check if already exists to prevent duplicates
+        if self.document_exists(source_url):
+            return False
+            
         # Simple chunking (in production use LangChain RecursiveCharacterTextSplitter)
         # For now, we store the whole chunk if it's small, or split blindly
         
@@ -35,7 +47,7 @@ class RAGManager:
             metadatas=metadatas,
             ids=ids
         )
-        return len(chunks)
+        return True
 
     def search(self, query, n_results=3):
         """Retrieves relevant context for a query."""

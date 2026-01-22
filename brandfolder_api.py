@@ -124,7 +124,12 @@ class BrandfolderAPI:
             raise ValueError("Must provide section_id, collection_id, or brandfolder_id")
         
         result = self._request("GET", endpoint, params)
-        return result.get("data", [])
+        
+        # Map included attachments to assets
+        assets = result.get("data", [])
+        included = result.get("included", [])
+        return self._map_attachments_to_assets(assets, included)
+
     
     def search_assets(self, brandfolder_id: str, query: str, 
                       include_attachments: bool = True) -> List[Dict]:
@@ -144,7 +149,35 @@ class BrandfolderAPI:
             params["include"] = "attachments"
         
         result = self._request("GET", f"/brandfolders/{brandfolder_id}/assets", params)
-        return result.get("data", [])
+        
+        # Map included attachments to assets
+        assets = result.get("data", [])
+        included = result.get("included", [])
+        return self._map_attachments_to_assets(assets, included)
+    
+    def _map_attachments_to_assets(self, assets: List[Dict], included: List[Dict]) -> List[Dict]:
+        """
+        Map attachments from the 'included' array to their respective assets.
+        The API returns attachments separately and we need to merge them.
+        """
+        # Build a map of attachment ID -> attachment data
+        attachment_map = {}
+        for item in included:
+            if item.get("type") == "attachments":
+                attachment_map[item.get("id")] = item
+        
+        # Add included field to each asset with its attachments
+        for asset in assets:
+            asset_attachments = []
+            att_refs = asset.get("relationships", {}).get("attachments", {}).get("data", [])
+            for att_ref in att_refs:
+                att_id = att_ref.get("id")
+                if att_id in attachment_map:
+                    asset_attachments.append(attachment_map[att_id])
+            asset["included"] = asset_attachments
+        
+        return assets
+
     
     def get_asset_details(self, asset_id: str) -> Dict:
         """

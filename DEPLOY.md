@@ -44,23 +44,39 @@ git push -u origin main
 
 ---
 
-## 🚂 Paso 2: Desplegar en Railway
+---
 
-### 2.1 Crear Proyecto
+## 🚂 Paso 2: Desplegar en Railway (Backend y Frontend)
 
-1. Ve a [Railway.app](https://railway.app/)
-2. Haz clic en **"New Project"**
-3. Selecciona **"Deploy from GitHub repo"**
-4. Autoriza a Railway a acceder a tu GitHub
-5. Selecciona el repositorio `irresistible-agent`
+Como tienes un proyecto con Backend (FastAPI) y Frontend (Next.js) en el mismo repositorio (Monorepo), deberás crear **dos servicios** en Railway conectados al mismo repositorio.
 
-### 2.2 Configurar el Servicio
+### 2.1 Desplegar el Backend
 
-Railway detectará automáticamente el `Procfile` y comenzará a construir.
+1.  En Railway, **New Project** → **Deploy from GitHub repo** → selecciona `irresistible-agent`.
+2.  Una vez creado, ve a **Settings** del servicio.
+3.  Busca la sección **Service** > **Root Directory**.
+4.  Escribe: `/backend`
+5.  Railway detectará la configuración y usará el comando de inicio correcto (`uvicorn...`).
+6.  **Variables de Entorno**: Configura las variables (Ver Paso 3) en este servicio.
+7.  **Domain**: Genera un dominio (ej: `backend-irresistible.up.railway.app`).
+
+### 2.2 Desplegar el Frontend
+
+1.  En el mismo proyecto de Railway, haz clic en **+ New** → **GitHub Repo** → selecciona `irresistible-agent` (otra vez).
+2.  Esto creará un segundo servicio.
+3.  Ve a **Settings** de este nuevo servicio.
+4.  **Root Directory**: Escribe `/frontend`
+5.  **Build Command**: `npm run build`
+6.  **Start Command**: `npm start`
+7.  **Variables de Entorno**:
+    *   `NEXT_PUBLIC_API_URL`: Pon la URL de tu backend (ej: `https://backend-irresistible.up.railway.app`).
+    *   **IMPORTANTE**: Esta variable debe ser accesible por el navegador, así que asegúrate de que el Backend tenga HTTPS (Railway lo da por defecto).
+8.  **Domain**: Genera un dominio para el frontend (ej: `irresistible-app.up.railway.app`).
 
 ---
 
-## ⚙️ Paso 3: Configurar Variables de Entorno
+## ⚙️ Paso 3: Configurar Variables del Backend
+
 
 ### 3.1 Variables Requeridas
 

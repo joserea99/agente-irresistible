@@ -35,7 +35,7 @@ def health_check():
     return {"status": "healthy"}
 
 # Include Routers
-from app.routers import auth, chat, brandfolder, dojo
+from .app.routers import auth, chat, brandfolder, dojo
 
 app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 app.include_router(chat.router, prefix="/chat", tags=["Chat"])

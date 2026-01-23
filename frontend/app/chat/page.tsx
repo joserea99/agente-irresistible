@@ -84,15 +84,33 @@ export default function ChatPage() {
                 responseType: 'blob'
             });
 
-            const url = window.URL.createObjectURL(new Blob([response.data]));
+            // Create blob with correct MIME type
+            const blob = new Blob([response.data], {
+                type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            });
+
+            const url = window.URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
-            link.setAttribute('download', `Conversacion-${selectedDirector}.docx`);
+
+            // Clean filename
+            const cleanDirector = selectedDirector.replace(/[^a-z0-9]/gi, '-');
+            const timestamp = new Date().toISOString().slice(0, 10);
+            link.setAttribute('download', `Conversacion-${cleanDirector}-${timestamp}.docx`);
+
             document.body.appendChild(link);
             link.click();
-            link.remove();
+
+            // Cleanup
+            setTimeout(() => {
+                document.body.removeChild(link);
+                window.URL.revokeObjectURL(url);
+            }, 100);
+
+            console.log('✅ Archivo exportado exitosamente');
         } catch (error) {
             console.error("Export error:", error);
+            alert("Error al exportar la conversación. Por favor intenta de nuevo.");
         }
     };
 
@@ -121,14 +139,26 @@ export default function ChatPage() {
                         </Select>
 
                         {messages.length > 0 && (
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={handleExportConversation}
-                            >
-                                <FileDown className="h-4 w-4 mr-2" />
-                                Exportar
-                            </Button>
+                            <div className="flex gap-2">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleExportConversation}
+                                    title="Exportar a Word"
+                                >
+                                    <FileDown className="h-4 w-4 mr-2" />
+                                    DOCX
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => alert("Exportación a PDF próximamente")}
+                                    title="Exportar a PDF (próximamente)"
+                                >
+                                    <FileDown className="h-4 w-4 mr-2" />
+                                    PDF
+                                </Button>
+                            </div>
                         )}
                     </div>
                 </div>

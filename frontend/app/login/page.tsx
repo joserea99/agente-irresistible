@@ -11,6 +11,8 @@ import { Label } from "@/components/ui/label";
 import { Lock, User } from "lucide-react";
 import { motion } from "framer-motion";
 
+import Cookies from 'js-cookie';
+
 export default function LoginPage() {
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
@@ -34,9 +36,13 @@ export default function LoginPage() {
                 device_fingerprint: deviceFingerprint
             });
             login(response.data.access_token, response.data.user);
+            Cookies.set('access_token', response.data.access_token, { expires: 1 }); // Expires in 1 day
             router.push("/dashboard");
         } catch (err: any) {
+            console.error("Login Error Full:", err);
             const detail = err.response?.data?.detail;
+            console.log("Error Detail:", detail);
+            console.log("Error Status:", err.response?.status);
 
             if (err.response?.status === 403) {
                 if (detail?.includes("Trial")) {
@@ -49,13 +55,19 @@ export default function LoginPage() {
                 }
             }
 
-            if (err.response?.status === 401 && detail?.includes("New device")) {
-                router.push("/verify-device");
-                return;
+            if (err.response?.status === 401) {
+                if (detail?.includes("New device")) {
+                    console.log("Redirecting to verify-device...");
+                    router.push("/verify-device");
+                    return;
+                }
+                // Handle "Incorrect username or password" specifically if needed
             }
 
             // Fallback to error from server or generic localized error
-            setError(detail || t.auth.error);
+            const errorMessage = detail || t.auth.error;
+            console.error("Setting error message:", errorMessage);
+            setError(errorMessage);
         } finally {
             setIsLoading(false);
         }
@@ -116,8 +128,19 @@ export default function LoginPage() {
                             </Button>
                         </form>
                     </CardContent>
-                    <CardFooter className="justify-center">
-                        <p className="text-xs text-muted-foreground">{t.common.appName} Security</p>
+                    <CardFooter className="flex flex-col space-y-2">
+                        <div className="text-center">
+                            <p className="text-sm text-muted-foreground">
+                                Don't have an account?{" "}
+                                <a
+                                    href="/register"
+                                    className="text-primary hover:underline font-medium"
+                                >
+                                    Sign up
+                                </a>
+                            </p>
+                        </div>
+                        <p className="text-xs text-muted-foreground text-center">{t.common.appName} Security</p>
                     </CardFooter>
                 </Card>
             </motion.div>

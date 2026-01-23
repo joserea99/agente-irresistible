@@ -107,12 +107,12 @@ def verify_user(username, password, device_fingerprint="unknown"):
     # 2. Check Device
     known_devices = json.loads(user['known_devices'])
     if device_fingerprint not in known_devices and device_fingerprint != "unknown":
-        # In a real app, we would trigger 2FA here.
-        # For this implementation, we will auto-add if it's the first time or just warn.
-        # Let's return a specific code to frontend
-        return None, "new_device_2fa"
+        # Auto-add device to avoid blocking user (requested relaxation of security)
+        update_user_devices(username, device_fingerprint)
+        # Re-fetch user or just proceed (since we are returning tuple)
+        # return None, "new_device_2fa"
 
-    return (user['full_name'], user['role']), "success"
+    return (user['full_name'], user['role'], user['subscription_status']), "success"
 
 def update_user_devices(username, device_fingerprint):
     conn = sqlite3.connect(DB_PATH)

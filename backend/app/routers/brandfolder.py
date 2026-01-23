@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from ..models.brandfolder import SearchRequest, IngestRequest
 from ..services.brandfolder_service import BrandfolderAPI
 from ..services.rag_service import RAGManager
+from ..services.chat_service import ChatService
 
 router = APIRouter()
 
@@ -45,7 +46,12 @@ async def ingest_assets(request: IngestRequest):
         
         # Get assets
         if request.topic:
-            assets = api.search_assets(bf_id, request.topic)
+            # Optimize query using LLM (Spanish -> English + Synonyms)
+            chat = ChatService()
+            optimized_topic = chat.optimize_query(request.topic)
+            print(f"🧠 Optimized ingestion topic: {request.topic} -> {optimized_topic}")
+            
+            assets = api.search_assets(bf_id, optimized_topic)
         else:
             assets = api.get_assets(brandfolder_id=bf_id, per_page=request.max_assets)
             
@@ -71,3 +77,19 @@ async def ingest_assets(request: IngestRequest):
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/stats")
+async def get_stats():
+    """Returns statistics about the knowledge base."""
+    try:
+        rag = RAGManager()
+        count = rag.get_stats()
+        recent = rag.get_recent_documents(limit=5)
+        return {
+            "document_count": count,
+            "recent_documents": recent
+        }
+    except Exception as e:
+        # If DB isn't initialized or other error, return 0
+        print(f"Stats error: {e}")
+        return {"document_count": 0, "recent_documents": []}

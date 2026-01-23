@@ -254,3 +254,34 @@ Use this context to provide more specific and accurate answers. If the context d
         doc.save(buffer)
         buffer.seek(0)
         return buffer.getvalue()
+
+    def optimize_query(self, query: str) -> str:
+        """
+        Optimizes a search query by translating to English and expanding synonyms.
+        """
+        if not self.llm:
+            return query
+            
+        prompt = f"""
+        You are a search expert. The user is searching for assets in a DAM (Digital Asset Management) system.
+        The assets are mostly in English.
+        Convert the following search term (which may be in Spanish) into an optimized search query string.
+        
+        RULES:
+        1. Translate to English if in Spanish.
+        2. Keep the original term.
+        3. Add 1-2 key synonyms.
+        4. Join with 'OR'.
+        5. Return ONLY the query string, nothing else.
+        
+        Input: "{query}"
+        """
+        
+        try:
+            response = self.llm.invoke([HumanMessage(content=prompt)])
+            cleaned = response.content.strip().replace('"', '')
+            print(f"🔍 Optimized Query: '{query}' -> '{cleaned}'")
+            return cleaned
+        except Exception as e:
+            print(f"❌ Error optimizing query: {e}")
+            return query

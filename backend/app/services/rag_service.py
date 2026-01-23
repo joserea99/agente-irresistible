@@ -73,3 +73,31 @@ class RAGManager:
     def get_stats(self):
         """Returns the number of documents in memory."""
         return self.collection.count()
+
+    def get_recent_documents(self, limit=5):
+        """Returns metadata of recent documents."""
+        # Chroma doesn't strictly support "last inserted" without timestamp metadata
+        # But grabbing a few is better than nothing for the dashboard
+        try:
+            # We get more than we need to try to filter unique titles
+            results = self.collection.get(
+                limit=limit * 2, 
+                include=["metadatas"]
+            )
+            
+            seen_titles = set()
+            unique_docs = []
+            
+            if results["metadatas"]:
+                for meta in results["metadatas"]:
+                    title = meta.get("title", "Unknown Asset")
+                    if title not in seen_titles:
+                        seen_titles.add(title)
+                        unique_docs.append(meta)
+                        if len(unique_docs) >= limit:
+                            break
+                            
+            return unique_docs
+        except Exception as e:
+            print(f"Error fetching recent docs: {e}")
+            return []

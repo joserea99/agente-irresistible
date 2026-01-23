@@ -34,10 +34,10 @@ async def login(user_data: UserLogin):
         # Generic error fallback
         raise HTTPException(status_code=401, detail="Incorrect username or password")
     
-    # user is (full_name, role)
-    full_name, role = user
-    user_info = {"username": user_data.username, "full_name": full_name, "role": role}
-    access_token = create_access_token(data={"sub": user_data.username, "role": role})
+    # user is (full_name, role, subscription_status)
+    full_name, role, subscription_status = user
+    user_info = {"username": user_data.username, "full_name": full_name, "role": role, "subscription_status": subscription_status}
+    access_token = create_access_token(data={"sub": user_data.username, "role": role, "subscription_status": subscription_status})
     
     return {"access_token": access_token, "token_type": "bearer", "user": user_info}
 

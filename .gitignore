@@ -59,3 +59,5 @@ coverage/
 *.bak
 *.tmp
 .antigravityignore
+start_output.json
+

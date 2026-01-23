@@ -3,7 +3,6 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional
 from ..services.chat_service import ChatService
-from ..services.auth_service import get_current_user
 import os
 from io import BytesIO
 

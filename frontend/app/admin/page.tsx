@@ -41,6 +41,17 @@ export default function AdminPage() {
         }
     };
 
+    const toggleRole = async (username: string, newRole: string) => {
+        if (!confirm(`Change ${username}'s role to ${newRole}?`)) return;
+        try {
+            await api.put(`/auth/users/${username}/role`, { role: newRole });
+            // Optimistic update or refetch
+            setUsers(users.map(u => u.username === username ? { ...u, role: newRole } : u));
+        } catch (err) {
+            alert("Failed to update role");
+        }
+    };
+
     const deleteUser = async (username: string) => {
         if (!confirm(`Are you sure you want to delete ${username}?`)) return;
         try {
@@ -93,12 +104,32 @@ export default function AdminPage() {
                                         </td>
                                         <td className="p-3">
                                             {u.role !== "admin" && (
+                                                <div className="flex gap-2">
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        className="text-purple-400 border-purple-400 hover:bg-purple-400/10"
+                                                        onClick={() => toggleRole(u.username, "admin")}
+                                                    >
+                                                        Make Admin
+                                                    </Button>
+                                                    <Button
+                                                        variant="destructive"
+                                                        size="sm"
+                                                        onClick={() => deleteUser(u.username)}
+                                                    >
+                                                        Delete
+                                                    </Button>
+                                                </div>
+                                            )}
+                                            {u.role === "admin" && u.username !== user?.username && (
                                                 <Button
-                                                    variant="destructive"
+                                                    variant="outline"
                                                     size="sm"
-                                                    onClick={() => deleteUser(u.username)}
+                                                    className="text-blue-400 border-blue-400 hover:bg-blue-400/10"
+                                                    onClick={() => toggleRole(u.username, "member")}
                                                 >
-                                                    Delete
+                                                    Demote
                                                 </Button>
                                             )}
                                         </td>

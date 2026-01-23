@@ -169,10 +169,10 @@ def delete_user(username):
     finally:
         conn.close()
 
-def make_admin(username):
+def update_user_role(username, role):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("UPDATE users SET role='admin' WHERE username=?", (username,))
+    c.execute("UPDATE users SET role=? WHERE username=?", (role, username))
     conn.commit()
     conn.close()
 

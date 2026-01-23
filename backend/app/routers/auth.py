@@ -71,3 +71,13 @@ async def remove_user(username: str, admin: dict = Depends(verify_admin_role)):
     if delete_user(username):
         return {"message": "User deleted"}
     raise HTTPException(status_code=400, detail="Failed to delete user")
+
+@router.put("/users/{username}/role")
+async def change_role(username: str, role_data: dict, admin: dict = Depends(verify_admin_role)):
+    from ..services.auth_service import update_user_role
+    new_role = role_data.get("role")
+    if new_role not in ["admin", "member"]:
+       raise HTTPException(status_code=400, detail="Invalid role")
+    update_user_role(username, new_role)
+    return {"message": "Role updated"}
+

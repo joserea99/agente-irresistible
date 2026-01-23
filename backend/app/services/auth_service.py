@@ -145,6 +145,38 @@ def get_chat_history(username, limit=50):
     conn.close()
     return [{"role": r[0], "content": r[1]} for r in rows]
 
+def get_all_users():
+    """Retrieves all users with their details."""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    c.execute("SELECT username, full_name, role, subscription_status, trial_start_date, created_at FROM users")
+    rows = c.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+def delete_user(username):
+    """Deletes a user by username."""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    try:
+        c.execute("DELETE FROM users WHERE username=?", (username,))
+        c.execute("DELETE FROM chat_history WHERE username=?", (username,))
+        conn.commit()
+        return True
+    except Exception:
+        return False
+    finally:
+        conn.close()
+
+def make_admin(username):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("UPDATE users SET role='admin' WHERE username=?", (username,))
+    conn.commit()
+    conn.close()
+
+
 # Initialize DB on first import
 if not os.path.exists(DB_PATH):
     init_db()

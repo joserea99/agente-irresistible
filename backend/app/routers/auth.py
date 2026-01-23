@@ -47,3 +47,18 @@ async def register(user_data: UserRegister):
     if not success:
         raise HTTPException(status_code=400, detail="Username already registered")
     return {"message": "User created successfully"}
+
+@router.get("/users")
+async def list_users():
+    # In a real app, verify admin role from token here
+    from ..services.auth_service import get_all_users
+    return get_all_users()
+
+@router.delete("/users/{username}")
+async def remove_user(username: str):
+    # In a real app, verify admin role from token here
+    from ..services.auth_service import delete_user
+    if delete_user(username):
+        return {"message": "User deleted"}
+    raise HTTPException(status_code=400, detail="Failed to delete user")
+

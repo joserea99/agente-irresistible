@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends
+from fastapi.security import OAuth2PasswordBearer
 from ..models.auth import UserLogin, UserRegister, Token
 from ..services.auth_service import verify_user, add_user, init_db
 from datetime import datetime, timedelta
@@ -10,6 +11,7 @@ router = APIRouter()
 SECRET_KEY = "supersecretkey" # TODO: Move to .env
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 def create_access_token(data: dict):
     to_encode = data.copy()
@@ -17,6 +19,16 @@ def create_access_token(data: dict):
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
+
+async def verify_admin_role(token: str = Depends(oauth2_scheme)):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        role = payload.get("role")
+        if role != "admin":
+            raise HTTPException(status_code=403, detail="Admin privileges required")
+        return payload
+    except jwt.JWTError:
+        raise HTTPException(status_code=401, detail="Could not validate credentials")
 
 @router.post("/login", response_model=Token)
 async def login(user_data: UserLogin):
@@ -49,16 +61,13 @@ async def register(user_data: UserRegister):
     return {"message": "User created successfully"}
 
 @router.get("/users")
-async def list_users():
-    # In a real app, verify admin role from token here
+async def list_users(admin: dict = Depends(verify_admin_role)):
     from ..services.auth_service import get_all_users
     return get_all_users()
 
 @router.delete("/users/{username}")
-async def remove_user(username: str):
-    # In a real app, verify admin role from token here
+async def remove_user(username: str, admin: dict = Depends(verify_admin_role)):
     from ..services.auth_service import delete_user
     if delete_user(username):
         return {"message": "User deleted"}
     raise HTTPException(status_code=400, detail="Failed to delete user")
-

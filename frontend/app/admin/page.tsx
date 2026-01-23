@@ -22,10 +22,10 @@ export default function AdminPage() {
 
     useEffect(() => {
         // Basic protection (client-side only for now)
-        /* if (user?.role !== "admin") {
-           router.push("/dashboard");
-           return;
-        } */
+        if (user?.role !== "admin") {
+            router.push("/dashboard");
+            return;
+        }
 
         fetchUsers();
     }, [user]);

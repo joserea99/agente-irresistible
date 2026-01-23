@@ -1,8 +1,61 @@
+# Python
 venv/
 __pycache__/
-.env
-.DS_Store
 *.pyc
-chroma_db/
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
 users.db
+irresistible_app.db
+chroma_db/
+irresistible_brain_db/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Temporary files
 tmp/
+temp/
+*.log
+
+# Node.js (Frontend)
+node_modules/
+.next/
+out/
+.cache/
+*.tsbuildinfo
+next-env.d.ts
+
+# Testing
+.pytest_cache/
+coverage/
+*.cover
+.coverage
+
+# Misc
+*.bak
+*.tmp
+.antigravityignore

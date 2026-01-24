@@ -26,10 +26,17 @@ class MediaService:
             media_file = genai.upload_file(path=file_path, mime_type=mime_type)
             
             # Wait for processing state
+            attempts = 0
+            MAX_ATTEMPTS = 60 # 2 minutes max (2s sleep * 60)
+            
             while media_file.state.name == "PROCESSING":
-                print("⏳ Processing media file...", end="\r")
+                print(f"⏳ Processing media file... ({attempts}/{MAX_ATTEMPTS})", end="\r")
                 time.sleep(2)
                 media_file = genai.get_file(media_file.name)
+                attempts += 1
+                
+                if attempts > MAX_ATTEMPTS:
+                    raise TimeoutError("Media processing timed out in Gemini.")
                 
             if media_file.state.name == "FAILED":
                 raise ValueError("Media processing failed in Gemini.")

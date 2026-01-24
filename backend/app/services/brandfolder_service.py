@@ -168,7 +168,12 @@ class BrandfolderAPI:
         # Add included field to each asset with its attachments
         for asset in assets:
             asset_attachments = []
-            att_refs = asset.get("relationships", {}).get("attachments", {}).get("data", [])
+            
+            # Safe access to nested relationships
+            rels = asset.get("relationships") or {}
+            att_rels = rels.get("attachments") or {}
+            att_refs = att_rels.get("data") or []
+            
             for att_ref in att_refs:
                 att_id = att_ref.get("id")
                 if att_id in attachment_map:
@@ -258,8 +263,12 @@ class BrandfolderAPI:
         }
         
         # Extract attachments
-        included = asset.get("included", [])
-        attachments = asset.get("relationships", {}).get("attachments", {}).get("data", [])
+        included = asset.get("included") or []
+        
+        # relationships might be None if key exists
+        rels = asset.get("relationships") or {}
+        atts_rel = rels.get("attachments") or {}
+        attachments = atts_rel.get("data") or []
         
         # Look in included data for attachment details
         for att in included:

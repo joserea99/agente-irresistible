@@ -10,8 +10,14 @@ from .media_service import MediaService
 from .rag_service import RAGManager
 
 # DB Path (Same volume as auth DB)
-current_dir = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.abspath(os.path.join(current_dir, "../../..", "irresistible_app.db"))
+# In Railway with a Volume mounted at /app/brain_data
+if os.path.exists("/app/brain_data"):
+    DB_PATH = "/app/brain_data/irresistible_app.db"
+    print(f"📂 Using Persistent DB at: {DB_PATH}")
+else:
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    DB_PATH = os.path.abspath(os.path.join(current_dir, "../../..", "irresistible_app.db"))
+    print(f"📂 Using Local DB at: {DB_PATH}")
 
 class ResearchService:
     def __init__(self):

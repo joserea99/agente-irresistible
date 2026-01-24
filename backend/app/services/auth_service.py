@@ -6,10 +6,14 @@ from datetime import datetime, timedelta
 
 # Use SQLite for local development, easy to switch to Postgres later
 # In Railway with a Volume mounted at /app/brain_data
-# Use absolute path for DB to avoid working directory issues
-current_dir = os.path.dirname(os.path.abspath(__file__))
-# The DB is in the root of the project (two levels up from services/auth_service.py)
-DB_PATH = os.path.abspath(os.path.join(current_dir, "../../..", "irresistible_app.db"))
+# In Railway with a Volume mounted at /app/brain_data
+if os.path.exists("/app/brain_data"):
+    DB_PATH = "/app/brain_data/irresistible_app.db"
+    print(f"📂 Using Persistent DB at: {DB_PATH}")
+else:
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    DB_PATH = os.path.abspath(os.path.join(current_dir, "../../..", "irresistible_app.db"))
+    print(f"📂 Using Local DB at: {DB_PATH}")
 
 
 def init_db():

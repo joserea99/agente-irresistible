@@ -115,6 +115,8 @@ Para evitar que se borre tu base de datos y tu base de conocimiento cada vez que
 4.  Mount Path: `/app/brain_data`
 5.  Haz clic en **Add**.
 
+> **⚠️ CRÍTICO**: El código ahora busca específicamente en `/app/brain_data`. Si montas el volumen en otra ruta (ej: `/brain_data` sin `/app`), **NO FUNCIONARÁ** y perderás los datos. Asegúrate de que sea exacto.
+
 > **¿Qué hace esto?** Crea un "disco duro" permanente. Ahora tu base de datos (`irresistible_app.db`) y tu cerebro (`irresistible_brain_db`) se guardarán aquí y **sobrevivirán** a los despliegues.
 
 ---

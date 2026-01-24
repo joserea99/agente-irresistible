@@ -214,9 +214,14 @@ class BrandfolderAPI:
         try:
             print(f"⬇️ Downloading: {attachment_url[:60]}...")
             
+            headers = {}
+            # Only send Auth header if it's a Brandfolder API URL, not a signed GCS/S3 link
+            if "brandfolder.com/api" in attachment_url:
+                headers["Authorization"] = f"Bearer {self.api_key}"
+            
             response = requests.get(
                 attachment_url,
-                headers={"Authorization": f"Bearer {self.api_key}"},
+                headers=headers,
                 cookies=cookies,
                 stream=True,
                 timeout=120

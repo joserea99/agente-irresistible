@@ -43,6 +43,8 @@ class MediaService:
                 
             print(f"✅ Media ready: {media_file.uri}")
             
+            prompt = "Transcribe the audio in this file. Provide a comprehensive summary of the key points, followed by a detailed transcript if possible. If it's a video, describe the visual content as well."
+            
             # Model Fallback Strategy
             # The library/API version might vary, so we try multiple known aliases
             models_to_try = [

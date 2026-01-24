@@ -65,95 +65,113 @@ class ResearchService:
         Step 1: Scan & Map.
         Searches Brandfolder, clusters results, and saves a proposed session.
         """
-        session_id = str(uuid.uuid4())
-        
-        # 1. Optimize Query
-        optimized_query = self.chat_service.optimize_query(query)
-        print(f"🔍 Researching: {query} -> {optimized_query}")
-        
-        # 2. Scan Brandfolder (Limit scan to top 20 for Proposal speed)
-        # In a real app we might want to scan more, but for speed let's stick to 20
-        # We assume the first Brandfolder available
-        bfs = self.bf_api.get_brandfolders()
-        if not bfs:
-            raise ValueError("No Brandfolders found")
-        bf_id = bfs[0]['id']
-        
-        raw_assets = self.bf_api.search_assets(bf_id, optimized_query)
-        
-        # FALLBACK: If optimized query yields no results, try the original query
-        if not raw_assets and query != optimized_query:
-            print(f"⚠️ Optimized query returned 0 results. Retrying with raw query: '{query}'")
-            raw_assets = self.bf_api.search_assets(bf_id, query)
+        print(f"🚀 [Research] Starting session for user={user_id} query='{query}'")
+        try:
+            session_id = str(uuid.uuid4())
+            
+            # 1. Optimize Query
+            print("🔍 [Research] Optimizing query...")
+            optimized_query = self.chat_service.optimize_query(query)
+            print(f"✅ [Research] Optimized: {query} -> {optimized_query}")
+            
+            # 2. Find Brandfolder
+            print("🔍 [Research] Getting Brandfolders...")
+            bfs = self.bf_api.get_brandfolders()
+            if not bfs:
+                print("❌ [Research] No Brandfolders found")
+                raise ValueError("No Brandfolders found")
+            bf_id = bfs[0]['id']
+            print(f"✅ [Research] Using Brandfolder: {bfs[0].get('attributes', {}).get('name')} ({bf_id})")
+            
+            # 3. Search Assets
+            print(f"🔍 [Research] Searching assets with query: '{optimized_query}'")
+            raw_assets = self.bf_api.search_assets(bf_id, optimized_query)
+            print(f"✅ [Research] Found {len(raw_assets)} assets with optimized query")
+            
+            # FALLBACK: If optimized query yields no results, try the original query
+            if not raw_assets and query != optimized_query:
+                print(f"⚠️ [Research] Optimized query failed. Retrying with raw query: '{query}'")
+                raw_assets = self.bf_api.search_assets(bf_id, query)
+                print(f"✅ [Research] Found {len(raw_assets)} assets with raw query")
 
-        # FALLBACK 2: If still nothing, try extracting key terms and joining with OR
-        if not raw_assets:
-             # Split by space, remove common Spanish stop words
-             stop_words = {'el', 'la', 'los', 'las', 'un', 'una', 'unos', 'unas', 'y', 'o', 'de', 'del', 'a', 'ante', 'bajo', 'con', 'contra', 'de', 'desde', 'en', 'entre', 'hacia', 'hasta', 'para', 'por', 'según', 'sin', 'so', 'sobre', 'tras'}
-             words = [w for w in query.split() if w.lower() not in stop_words and len(w) > 3]
-             
-             if words:
-                 or_query = " OR ".join(words)
-                 print(f"⚠️ Retrying with OR keywords: '{or_query}'")
-                 raw_assets = self.bf_api.search_assets(bf_id, or_query)
+            # FALLBACK 2: If still nothing, try extracting key terms and joining with OR
+            if not raw_assets:
+                 # Split by space, remove common Spanish stop words
+                 stop_words = {'el', 'la', 'los', 'las', 'un', 'una', 'unos', 'unas', 'y', 'o', 'de', 'del', 'a', 'ante', 'bajo', 'con', 'contra', 'de', 'desde', 'en', 'entre', 'hacia', 'hasta', 'para', 'por', 'según', 'sin', 'so', 'sobre', 'tras'}
+                 words = [w for w in query.split() if w.lower() not in stop_words and len(w) > 3]
+                 
+                 if words:
+                     or_query = " OR ".join(words)
+                     print(f"⚠️ [Research] Retrying with OR keywords: '{or_query}'")
+                     raw_assets = self.bf_api.search_assets(bf_id, or_query)
+                     print(f"✅ [Research] Found {len(raw_assets)} assets with OR query")
 
-        # FALLBACK 3: Last resort, try just the first significant word
-        if not raw_assets and words:
-             simple_query = words[0]
-             print(f"⚠️ Last resort query: '{simple_query}'")
-             raw_assets = self.bf_api.search_assets(bf_id, simple_query)
-        
-        # 3. Save Session & Assets Draft
-        conn = sqlite3.connect(DB_PATH)
-        c = conn.cursor()
-        
-        c.execute("INSERT INTO research_sessions (id, user_id, query, status) VALUES (?, ?, ?, ?)",
-                  (session_id, user_id, query, 'proposed'))
-        
-        proposed_assets = []
-        
-        for asset in raw_assets[:100]: # Increased cap from 20 to 100 for deeper research
-            info = self.bf_api.extract_asset_info(asset)
+            # FALLBACK 3: Last resort, try just the first significant word
+            if not raw_assets and words:
+                 simple_query = words[0]
+                 print(f"⚠️ [Research] Last resort query: '{simple_query}'")
+                 raw_assets = self.bf_api.search_assets(bf_id, simple_query)
+                 print(f"✅ [Research] Found {len(raw_assets)} assets with simple query")
             
-            # Determine type
-            asset_type = 'document'
-            url = f"https://brandfolder.com/workbench/{info['id']}" # Default source
+            # 4. Save Session & Assets Draft
+            print(f"💾 [Research] Saving session {session_id} to DB...")
+            conn = sqlite3.connect(DB_PATH)
+            c = conn.cursor()
             
-            # Check for media url
-            for att in info['attachments']:
-                if 'video' in att.get('mimetype', ''):
-                    asset_type = 'video'
-                    url = att.get('url') # Actual file for transcription later
-                    break
-                if 'audio' in att.get('mimetype', ''):
-                    asset_type = 'audio'
-                    url = att.get('url')
-                    break
+            c.execute("INSERT INTO research_sessions (id, user_id, query, status) VALUES (?, ?, ?, ?)",
+                      (session_id, user_id, query, 'proposed'))
             
-            c.execute("INSERT INTO research_assets (session_id, asset_id, name, type, url) VALUES (?, ?, ?, ?, ?)",
-                      (session_id, info['id'], info['name'], asset_type, url))
+            proposed_assets = []
             
-            proposed_assets.append({
-                "id": info['id'],
-                "name": info['name'],
-                "type": asset_type
-            })
+            print(f"Processing {len(raw_assets)} raw assets...")
+            for asset in raw_assets[:100]: # Increased cap from 20 to 100 for deeper research
+                info = self.bf_api.extract_asset_info(asset)
+                
+                # Determine type
+                asset_type = 'document'
+                url = f"https://brandfolder.com/workbench/{info['id']}" # Default source
+                
+                # Check for media url
+                for att in info['attachments']:
+                    if 'video' in att.get('mimetype', ''):
+                        asset_type = 'video'
+                        url = att.get('url') # Actual file for transcription later
+                        break
+                    if 'audio' in att.get('mimetype', ''):
+                        asset_type = 'audio'
+                        url = att.get('url')
+                        break
+                
+                c.execute("INSERT INTO research_assets (session_id, asset_id, name, type, url) VALUES (?, ?, ?, ?, ?)",
+                          (session_id, info['id'], info['name'], asset_type, url))
+                
+                proposed_assets.append({
+                    "id": info['id'],
+                    "name": info['name'],
+                    "type": asset_type
+                })
+                
+            conn.commit()
+            conn.close()
+            print("✅ [Research] Session persisted successfully")
             
-        conn.commit()
-        conn.close()
-        
-        # 4. Generate Semantic Summary of what was found
-        # We simply list the titles to Gemini to categorize them
-        titles = [a['name'] for a in proposed_assets]
-        summary = f"Found {len(titles)} assets related to '{query}'."
-        
-        return {
-            "session_id": session_id,
-            "query": query,
-            "asset_count": len(proposed_assets),
-            "assets": proposed_assets,
-            "summary": summary
-        }
+            # 5. Generate Semantic Summary
+            titles = [a['name'] for a in proposed_assets]
+            summary = f"Found {len(titles)} assets related to '{query}'."
+            
+            return {
+                "session_id": session_id,
+                "query": query,
+                "asset_count": len(proposed_assets),
+                "assets": proposed_assets,
+                "summary": summary
+            }
+
+        except Exception as e:
+            print(f"❌ [Research] CRITICAL ERROR: {e}")
+            import traceback
+            traceback.print_exc()
+            raise
 
     def get_history(self, user_id: str):
         conn = sqlite3.connect(DB_PATH)

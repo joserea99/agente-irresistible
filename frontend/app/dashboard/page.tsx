@@ -80,7 +80,14 @@ export default function DashboardPage() {
                 {/* Header Section */}
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div>
-                        <h2 className="text-3xl font-bold font-heading tracking-tight">{greeting}, {user?.full_name || "Leader"}</h2>
+                        <div className="flex items-center gap-3">
+                            <h2 className="text-3xl font-bold font-heading tracking-tight">{greeting}, {user?.full_name || "Leader"}</h2>
+                            {user?.role && (
+                                <span className={`px-2 py-0.5 rounded text-xs font-mono uppercase border ${user.role === 'admin' ? 'bg-purple-500/20 text-purple-400 border-purple-500/30' : 'bg-slate-500/20 text-slate-400 border-slate-500/30'}`}>
+                                    {user.role}
+                                </span>
+                            )}
+                        </div>
                         <p className="text-muted-foreground">{t.dashboard.readyToProcess || "Your strategic intelligence hub is ready."}</p>
                     </div>
                     <div className="flex gap-2">

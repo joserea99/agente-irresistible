@@ -24,8 +24,9 @@ class ResearchService:
         self._init_db()
         self.bf_api = BrandfolderAPI()
         self.chat_service = ChatService()
-        self.media_service = MediaService()
-        self.rag = RAGManager()
+        # Lazy load heavy/fragile services (Media, RAG) to avoid crashes on init
+        self.media_service = None 
+        self.rag = None
 
     def _init_db(self):
         conn = sqlite3.connect(DB_PATH)
@@ -224,6 +225,15 @@ class ResearchService:
         stats = {"indexed": 0, "failed": 0}
         
         for asset in assets:
+            # Lazy Init Services
+            from .media_service import MediaService
+            from .rag_service import RAGManager
+            
+            if not self.media_service:
+                self.media_service = MediaService()
+            if not self.rag:
+                self.rag = RAGManager()
+
             try:
                 # 1. Transcribe if media
                 content = f"Asset: {asset['name']}\nType: {asset['type']}"

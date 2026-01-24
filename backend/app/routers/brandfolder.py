@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends
+import fastapi
 from ..models.brandfolder import SearchRequest, IngestRequest
 from ..services.brandfolder_service import BrandfolderAPI
 from ..services.rag_service import RAGManager
@@ -121,3 +122,42 @@ async def get_stats():
         # If DB isn't initialized or other error, return 0
         print(f"Stats error: {e}")
         return {"document_count": 0, "recent_documents": []}
+
+
+# --------------------------
+# DEEP RESEARCH ENDPOINTS
+# --------------------------
+from pydantic import BaseModel
+
+class ResearchStartRequest(BaseModel):
+    query: str
+    username: str
+
+@router.post("/research/start")
+async def start_research(request: ResearchStartRequest):
+    from ..services.research_service import ResearchService
+    service = ResearchService()
+    return service.create_session(request.username, request.query)
+
+@router.get("/research/history")
+async def get_research_history(username: str):
+    from ..services.research_service import ResearchService
+    service = ResearchService()
+    return service.get_history(username)
+
+@router.get("/research/{session_id}")
+async def get_research_session(session_id: str):
+    from ..services.research_service import ResearchService
+    service = ResearchService()
+    return service.get_session_status(session_id)
+
+@router.post("/research/{session_id}/execute")
+async def execute_research(session_id: str, background_tasks: fastapi.BackgroundTasks):
+    from ..services.research_service import ResearchService
+    service = ResearchService()
+    
+    # Run in background to avoid timeout
+    background_tasks.add_task(service.execute_session, session_id)
+    
+    return {"message": "Deep Research started in background. Check status for updates."}
+

@@ -86,10 +86,21 @@ class ResearchService:
             print(f"⚠️ Optimized query returned 0 results. Retrying with raw query: '{query}'")
             raw_assets = self.bf_api.search_assets(bf_id, query)
 
-        # FALLBACK 2: If still nothing, try a very broad search (first word)
-        if not raw_assets and len(query.split()) > 1:
-             simple_query = query.split()[0]
-             print(f"⚠️ Raw query returned 0 results. Retrying with simple query: '{simple_query}'")
+        # FALLBACK 2: If still nothing, try extracting key terms and joining with OR
+        if not raw_assets:
+             # Split by space, remove common Spanish stop words
+             stop_words = {'el', 'la', 'los', 'las', 'un', 'una', 'unos', 'unas', 'y', 'o', 'de', 'del', 'a', 'ante', 'bajo', 'con', 'contra', 'de', 'desde', 'en', 'entre', 'hacia', 'hasta', 'para', 'por', 'según', 'sin', 'so', 'sobre', 'tras'}
+             words = [w for w in query.split() if w.lower() not in stop_words and len(w) > 3]
+             
+             if words:
+                 or_query = " OR ".join(words)
+                 print(f"⚠️ Retrying with OR keywords: '{or_query}'")
+                 raw_assets = self.bf_api.search_assets(bf_id, or_query)
+
+        # FALLBACK 3: Last resort, try just the first significant word
+        if not raw_assets and words:
+             simple_query = words[0]
+             print(f"⚠️ Last resort query: '{simple_query}'")
              raw_assets = self.bf_api.search_assets(bf_id, simple_query)
         
         # 3. Save Session & Assets Draft

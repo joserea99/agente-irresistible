@@ -43,8 +43,10 @@ export default function DeepResearch() {
             });
             setSession(res.data);
             setView('proposal');
-        } catch (err) {
-            alert("Failed to start research");
+        } catch (err: any) {
+            console.error(err);
+            const msg = err.response?.data?.detail || err.message || "Failed to start research";
+            alert(`Error: ${msg}`);
         } finally {
             setLoading(false);
         }

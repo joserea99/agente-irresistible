@@ -276,11 +276,11 @@ class BrandfolderAPI:
                 att_attrs = att.get("attributes", {})
                 info["attachments"].append({
                     "id": att.get("id"),
-                    "url": att_attrs.get("url"),
-                    "filename": att_attrs.get("filename"),
-                    "mimetype": att_attrs.get("mimetype"),
+                    "url": att_attrs.get("url") or "",
+                    "filename": att_attrs.get("filename") or "untitled",
+                    "mimetype": att_attrs.get("mimetype") or "",
                     "size": att_attrs.get("size"),
-                    "extension": att_attrs.get("extension")
+                    "extension": att_attrs.get("extension") or ""
                 })
         
         return info

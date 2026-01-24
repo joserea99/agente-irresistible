@@ -134,11 +134,12 @@ class ResearchService:
                 
                 # Check for media url
                 for att in info['attachments']:
-                    if 'video' in att.get('mimetype', ''):
+                    mimetype = att.get('mimetype') or ''
+                    if 'video' in mimetype:
                         asset_type = 'video'
                         url = att.get('url') # Actual file for transcription later
                         break
-                    if 'audio' in att.get('mimetype', ''):
+                    if 'audio' in mimetype:
                         asset_type = 'audio'
                         url = att.get('url')
                         break

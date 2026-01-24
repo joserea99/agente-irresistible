@@ -19,6 +19,17 @@ api.interceptors.request.use((config) => {
     return config;
 });
 
+// Handle 401s auto-logout
+api.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        if (error.response?.status === 401) {
+            useAuthStore.getState().logout();
+        }
+        return Promise.reject(error);
+    }
+);
+
 // Auth Store
 interface User {
     username: string;

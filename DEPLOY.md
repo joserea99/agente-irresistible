@@ -70,6 +70,7 @@ Como tienes un proyecto con Backend (FastAPI) y Frontend (Next.js) en el mismo r
 6.  **Start Command**: `npm start`
 7.  **Variables de Entorno**:
     *   `NEXT_PUBLIC_API_URL`: Pon la URL de tu backend (ej: `https://backend-irresistible.up.railway.app`).
+    *   `SECRET_KEY`: **CRÍTICO**. Debe ser la MISMA clave que pusiste en el Backend. Si no coinciden, no podrás entrar.
     *   **IMPORTANTE**: Esta variable debe ser accesible por el navegador, así que asegúrate de que el Backend tenga HTTPS (Railway lo da por defecto).
 8.  **Domain**: Genera un dominio para el frontend (ej: `irresistible-app.up.railway.app`).
 

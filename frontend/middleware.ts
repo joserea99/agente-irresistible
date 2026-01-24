@@ -4,7 +4,7 @@ import { jwtVerify } from 'jose';
 
 // Secret key for JWT (Must match backend)
 // In a real app, use process.env.SECRET_KEY
-const SECRET_KEY = new TextEncoder().encode("supersecretkey");
+const SECRET_KEY = new TextEncoder().encode(process.env.SECRET_KEY || "supersecretkey");
 
 export async function middleware(request: NextRequest) {
     const token = request.cookies.get('access_token')?.value;
@@ -41,5 +41,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-    matcher: ['/dashboard/:path*', '/chat/:path*', '/subscription/:path*'],
+    matcher: ['/dashboard/:path*', '/chat/:path*', '/subscription/:path*', '/admin/:path*'],
 };

@@ -6,6 +6,14 @@ import { useAuthStore, api } from "@/lib/store";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+
 interface User {
     username: string;
     full_name: string;
@@ -21,8 +29,11 @@ export default function AdminPage() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // Basic protection (client-side only for now)
-        if (user?.role !== "admin") {
+        // Wait for hydration
+        if (!user) return;
+
+        // Basic protection (client-side)
+        if (user.role !== "admin") {
             router.push("/dashboard");
             return;
         }
@@ -41,14 +52,20 @@ export default function AdminPage() {
         }
     };
 
-    const toggleRole = async (username: string, newRole: string) => {
-        if (!confirm(`Change ${username}'s role to ${newRole}?`)) return;
+    const updateRole = async (username: string, newRole: string) => {
+        // Prevent modifying own role to avoid locking oneself out
+        if (username === user?.username) {
+            alert("You cannot change your own role.");
+            return;
+        }
+
         try {
             await api.put(`/auth/users/${username}/role`, { role: newRole });
-            // Optimistic update or refetch
+            // Optimistic update
             setUsers(users.map(u => u.username === username ? { ...u, role: newRole } : u));
         } catch (err) {
             alert("Failed to update role");
+            fetchUsers(); // Revert on failure
         }
     };
 
@@ -93,9 +110,19 @@ export default function AdminPage() {
                                         <td className="p-3">{u.username}</td>
                                         <td className="p-3">{u.full_name}</td>
                                         <td className="p-3">
-                                            <span className={`px-2 py-1 rounded text-xs ${u.role === 'admin' ? 'bg-purple-500/20 text-purple-400' : 'bg-blue-500/20 text-blue-400'}`}>
-                                                {u.role}
-                                            </span>
+                                            <Select
+                                                disabled={u.username === user?.username}
+                                                value={u.role}
+                                                onValueChange={(val) => updateRole(u.username, val)}
+                                            >
+                                                <SelectTrigger className="w-[110px] bg-slate-800 border-slate-700 text-slate-200">
+                                                    <SelectValue placeholder="Role" />
+                                                </SelectTrigger>
+                                                <SelectContent className="bg-slate-800 border-slate-700 text-slate-200">
+                                                    <SelectItem value="admin">Admin</SelectItem>
+                                                    <SelectItem value="member">Member</SelectItem>
+                                                </SelectContent>
+                                            </Select>
                                         </td>
                                         <td className="p-3">
                                             <span className={`text-xs ${u.subscription_status === 'active' ? 'text-green-400' : 'text-yellow-400'}`}>
@@ -103,33 +130,13 @@ export default function AdminPage() {
                                             </span>
                                         </td>
                                         <td className="p-3">
-                                            {u.role !== "admin" && (
-                                                <div className="flex gap-2">
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        className="text-purple-400 border-purple-400 hover:bg-purple-400/10"
-                                                        onClick={() => toggleRole(u.username, "admin")}
-                                                    >
-                                                        Make Admin
-                                                    </Button>
-                                                    <Button
-                                                        variant="destructive"
-                                                        size="sm"
-                                                        onClick={() => deleteUser(u.username)}
-                                                    >
-                                                        Delete
-                                                    </Button>
-                                                </div>
-                                            )}
-                                            {u.role === "admin" && u.username !== user?.username && (
+                                            {u.username !== user?.username && (
                                                 <Button
-                                                    variant="outline"
+                                                    variant="destructive"
                                                     size="sm"
-                                                    className="text-blue-400 border-blue-400 hover:bg-blue-400/10"
-                                                    onClick={() => toggleRole(u.username, "member")}
+                                                    onClick={() => deleteUser(u.username)}
                                                 >
-                                                    Demote
+                                                    Delete
                                                 </Button>
                                             )}
                                         </td>

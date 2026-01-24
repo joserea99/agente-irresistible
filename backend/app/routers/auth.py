@@ -4,11 +4,12 @@ from ..models.auth import UserLogin, UserRegister, Token
 from ..services.auth_service import verify_user, add_user, init_db
 from datetime import datetime, timedelta
 from jose import jwt
+import os
 
 router = APIRouter()
 
-# Secret key for JWT (should be in env)
-SECRET_KEY = "supersecretkey" # TODO: Move to .env
+# Secret key for JWT
+SECRET_KEY = os.environ.get("SECRET_KEY", "supersecretkey") # Fallback for dev, override in prod
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")

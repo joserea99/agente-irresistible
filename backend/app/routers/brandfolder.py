@@ -55,16 +55,44 @@ async def ingest_assets(request: IngestRequest):
         else:
             assets = api.get_assets(brandfolder_id=bf_id, per_page=request.max_assets)
             
+        # Initialize Media Service
+        from ..services.media_service import MediaService
+        media_service = MediaService()
+
         count = 0
         skipped = 0
         
         for asset in assets:
             info = api.extract_asset_info(asset)
             
-            # Simple indexing of description and name
-            # In real app, download attachment, extract text, transcribe, etc.
             content = f"Asset: {info['name']}\nDescription: {info['description']}\nTags: {', '.join(info['tags'])}"
             
+            # Check for Media Attachments (Video/Audio)
+            # We look for the first valid media attachment to transcribe
+            transcript = ""
+            for att in info['attachments']:
+                mime = att.get('mimetype', '')
+                url = att.get('url')
+                
+                if url and ('video' in mime or 'audio' in mime):
+                    print(f"🎙️ Found media asset: {info['name']} ({mime})")
+                    try:
+                        # Download temporarily
+                        temp_file = api.download_attachment(url)
+                        if temp_file:
+                            # Transcribe
+                            transcript = media_service.transcribe_media(temp_file, mime_type=mime)
+                            
+                            # Append to content
+                            content += f"\n\n--- TRANSCRIPTION ---\n{transcript}\n---------------------"
+                            
+                            # Clean up
+                            import os
+                            os.remove(temp_file)
+                            break # Only transcribe the first main media file per asset
+                    except Exception as e:
+                        print(f"⚠️ Failed to process media for {info['name']}: {e}")
+
             # Use 'web_view_link' or attachment url as source
             source = f"https://brandfolder.com/workbench/{info['id']}" 
             

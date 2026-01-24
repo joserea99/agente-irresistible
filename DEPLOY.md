@@ -105,7 +105,17 @@ python -c "import secrets; print(secrets.token_urlsafe(32))"
 1. En Railway, haz clic en **"+ New"** → **"Database"** → **"Add PostgreSQL"**
 2. Railway creará automáticamente `DATABASE_URL`
 
-> **Nota**: Si no agregas PostgreSQL, la app usará SQLite (funciona pero no es persistente en Railway)
+### 3.3 Configurar Persistencia (CRÍTICO)
+
+Para evitar que se borre tu base de datos y tu base de conocimiento cada vez que actualizas:
+
+1.  Ve a tu servicio **Backend** en Railway.
+2.  Ve a la pestaña **Volumes**.
+3.  Haz clic en **New Volume**.
+4.  Mount Path: `/app/brain_data`
+5.  Haz clic en **Add**.
+
+> **¿Qué hace esto?** Crea un "disco duro" permanente. Ahora tu base de datos (`irresistible_app.db`) y tu cerebro (`irresistible_brain_db`) se guardarán aquí y **sobrevivirán** a los despliegues.
 
 ---
 

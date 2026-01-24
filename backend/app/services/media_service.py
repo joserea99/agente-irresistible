@@ -44,7 +44,8 @@ class MediaService:
             print(f"✅ Media ready: {media_file.uri}")
             
             # Generate content (Transcription)
-            model = genai.GenerativeModel("gemini-1.5-flash")
+            # Use explicit version to avoid 404s on aliases
+            model = genai.GenerativeModel("gemini-1.5-flash-001")
             
             prompt = "Transcribe the audio in this file. Provide a comprehensive summary of the key points, followed by a detailed transcript if possible. If it's a video, describe the visual content as well."
             

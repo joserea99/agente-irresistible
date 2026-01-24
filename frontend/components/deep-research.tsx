@@ -9,9 +9,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Search, Play, FileText, CheckCircle, Video, Music } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useRouter } from "next/navigation";
 
 export default function DeepResearch() {
     const { user } = useAuthStore();
+    const router = useRouter();
     const [query, setQuery] = useState("");
     const [loading, setLoading] = useState(false);
     const [view, setView] = useState<'search' | 'proposal' | 'executing' | 'history'>('search');
@@ -223,7 +225,7 @@ export default function DeepResearch() {
                 {isDone && (
                     <div className="flex justify-center gap-4">
                         <Button variant="outline" onClick={() => setView('search')}>Start New Research</Button>
-                        <Button onClick={() => window.location.href = '/chat'}>Go to Chat & Ask</Button>
+                        <Button onClick={() => router.push('/chat')}>Go to Chat & Ask</Button>
                     </div>
                 )}
 

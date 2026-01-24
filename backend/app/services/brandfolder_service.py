@@ -192,7 +192,13 @@ class BrandfolderAPI:
         """
         params = {"include": "attachments,custom_fields,tags"}
         result = self._request("GET", f"/assets/{asset_id}", params)
-        return result.get("data", {})
+        
+        asset = result.get("data") or {}
+        included = result.get("included") or []
+        
+        # We need to map it as a list, then extract the first (and only) item
+        mapped_assets = self._map_attachments_to_assets([asset], included)
+        return mapped_assets[0] if mapped_assets else {}
     
     def download_attachment(self, attachment_url: str, cookies: Optional[Dict] = None) -> Optional[str]:
         """

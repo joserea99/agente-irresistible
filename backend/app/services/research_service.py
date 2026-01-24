@@ -239,16 +239,32 @@ class ResearchService:
                 # 1. Transcribe if media
                 content = f"Asset: {asset['name']}\nType: {asset['type']}"
                 
-                if asset['type'] in ['video', 'audio'] and asset['url'].startswith('http'):
-                    # Download & Transcribe
-                    # Note: We need to re-instantiate API inside here or pass it? API is stateless mostly.
-                    # Use existing downloading logic from BrandfolderAPI? 
-                    # Simpler: use requests directly or duplicate logic slightly to avoid circular dependency messy refactor
-                    local_path = self.bf_api.download_attachment(asset['url'])
-                    if local_path:
-                        transcript = self.media_service.transcribe_media(local_path, mime_type='video/mp4' if asset['type']=='video' else 'audio/mp3')
-                        content += f"\n\n--- TRANSCRIPT ---\n{transcript}"
-                        os.remove(local_path)
+                if asset['type'] in ['video', 'audio']:
+                    # REFRESH URL: Stored URL might be expired signed URL
+                    try:
+                        fresh_details = self.bf_api.get_asset_details(asset['asset_id'])
+                        fresh_info = self.bf_api.extract_asset_info(fresh_details)
+                        
+                        fresh_url = None
+                        for att in fresh_info['attachments']:
+                             mimetype = att.get('mimetype') or ''
+                             if asset['type'] == 'video' and 'video' in mimetype:
+                                 fresh_url = att.get('url')
+                                 break
+                             if asset['type'] == 'audio' and 'audio' in mimetype:
+                                 fresh_url = att.get('url')
+                                 break
+                        
+                        if fresh_url and fresh_url.startswith('http'):
+                            local_path = self.bf_api.download_attachment(fresh_url)
+                            if local_path:
+                                transcript = self.media_service.transcribe_media(local_path, mime_type='video/mp4' if asset['type']=='video' else 'audio/mp3')
+                                content += f"\n\n--- TRANSCRIPT ---\n{transcript}"
+                                os.remove(local_path)
+                    except Exception as e:
+                        print(f"⚠️ Failed to refresh/download media {asset['id']}: {e}")
+                        # Don't fail the whole asset logic, just skip transcript
+                        content += f"\n\n[Transcription Failed: {e}]"
                 
                 # 2. Index to Chroma
                 # Source needs to be the clickable link

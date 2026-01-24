@@ -43,13 +43,33 @@ class MediaService:
                 
             print(f"✅ Media ready: {media_file.uri}")
             
-            # Generate content (Transcription)
-            # Use explicit version to avoid 404s on aliases
-            model = genai.GenerativeModel("gemini-1.5-flash-001")
+            # Model Fallback Strategy
+            # The library/API version might vary, so we try multiple known aliases
+            models_to_try = [
+                "gemini-1.5-flash",
+                "gemini-1.5-flash-001",
+                "gemini-1.5-pro",
+                "gemini-1.5-pro-001",
+                "gemini-pro-vision" # Last resort for older envs (Supports video)
+            ]
             
-            prompt = "Transcribe the audio in this file. Provide a comprehensive summary of the key points, followed by a detailed transcript if possible. If it's a video, describe the visual content as well."
+            response = None
+            last_error = None
             
-            response = model.generate_content([prompt, media_file])
+            for model_name in models_to_try:
+                try:
+                    print(f"🤖 Trying Gemini Model: {model_name}...")
+                    model = genai.GenerativeModel(model_name)
+                    response = model.generate_content([prompt, media_file])
+                    print(f"✅ Success with model: {model_name}")
+                    break
+                except Exception as e:
+                    print(f"⚠️ Model {model_name} failed: {e}")
+                    last_error = e
+                    continue
+            
+            if not response:
+                raise ValueError(f"All Gemini models failed. Last error: {last_error}")
             
             # Clean up (delete from cloud to save space/privacy)
             # genai.delete_file(media_file.name) # Optional: uncomment if immediate cleanup is desired

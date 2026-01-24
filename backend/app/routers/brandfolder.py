@@ -234,6 +234,4 @@ async def debug_research_config():
         report["services"]["chat"] = f"failed: {str(e)}"
         
     return report
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 

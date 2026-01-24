@@ -135,29 +135,48 @@ class ResearchStartRequest(BaseModel):
 
 @router.post("/research/start")
 async def start_research(request: ResearchStartRequest):
-    from ..services.research_service import ResearchService
-    service = ResearchService()
-    return service.create_session(request.username, request.query)
+    try:
+        from ..services.research_service import ResearchService
+        service = ResearchService()
+        return service.create_session(request.username, request.query)
+    except Exception as e:
+        print(f"❌ Research Start Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/research/history")
 async def get_research_history(username: str):
-    from ..services.research_service import ResearchService
-    service = ResearchService()
-    return service.get_history(username)
+    try:
+        from ..services.research_service import ResearchService
+        service = ResearchService()
+        return service.get_history(username)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/research/{session_id}")
 async def get_research_session(session_id: str):
-    from ..services.research_service import ResearchService
-    service = ResearchService()
-    return service.get_session_status(session_id)
+    try:
+        from ..services.research_service import ResearchService
+        service = ResearchService()
+        session = service.get_session_status(session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+        return session
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Session Status Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/research/{session_id}/execute")
 async def execute_research(session_id: str, background_tasks: fastapi.BackgroundTasks):
-    from ..services.research_service import ResearchService
-    service = ResearchService()
-    
-    # Run in background to avoid timeout
-    background_tasks.add_task(service.execute_session, session_id)
-    
-    return {"message": "Deep Research started in background. Check status for updates."}
+    try:
+        from ..services.research_service import ResearchService
+        service = ResearchService()
+        
+        # Run in background to avoid timeout
+        background_tasks.add_task(service.execute_session, session_id)
+        
+        return {"message": "Deep Research started in background. Check status for updates."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 

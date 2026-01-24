@@ -50,33 +50,41 @@ export default function DeepResearch() {
         }
     };
 
+    // Polling Logic - Safe with cleanup
+    useEffect(() => {
+        let interval: NodeJS.Timeout;
+
+        if (view === 'executing' && session?.session_id) {
+            interval = setInterval(async () => {
+                try {
+                    const res = await api.get(`/brandfolder/research/${session.session_id}`);
+                    setSession(res.data);
+
+                    if (res.data.status === 'completed') {
+                        clearInterval(interval);
+                        setLoading(false);
+                        fetchHistory();
+                    }
+                } catch (err) {
+                    console.error("Polling error:", err);
+                }
+            }, 2000);
+        }
+
+        return () => clearInterval(interval);
+    }, [view, session?.session_id]);
+
     const executeResearch = async () => {
         if (!session) return;
         setLoading(true);
         try {
             await api.post(`/brandfolder/research/${session.session_id}/execute`);
             setView('executing');
-            pollStatus();
+            // Polling will start automatically due to useEffect dependence on 'view'
         } catch (err) {
             alert("Failed to execute");
             setLoading(false);
         }
-    };
-
-    const pollStatus = async () => {
-        const interval = setInterval(async () => {
-            try {
-                const res = await api.get(`/brandfolder/research/${session.session_id}`);
-                setSession(res.data);
-                if (res.data.status === 'completed') {
-                    clearInterval(interval);
-                    setLoading(false);
-                    fetchHistory();
-                }
-            } catch (err) {
-                console.error(err);
-            }
-        }, 2000);
     };
 
     // --- UI COMPONENTS ---

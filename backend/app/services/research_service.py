@@ -170,7 +170,13 @@ class ResearchService:
         c = conn.cursor()
         
         c.execute("SELECT * FROM research_sessions WHERE id=?", (session_id,))
-        session = dict(c.fetchone())
+        row = c.fetchone()
+        
+        if not row:
+            conn.close()
+            return None
+            
+        session = dict(row)
         
         c.execute("SELECT * FROM research_assets WHERE session_id=?", (session_id,))
         assets = [dict(r) for r in c.fetchall()]

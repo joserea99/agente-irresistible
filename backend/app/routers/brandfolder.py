@@ -177,6 +177,8 @@ async def execute_research(session_id: str, background_tasks: fastapi.Background
         background_tasks.add_task(service.execute_session, session_id)
         
         return {"message": "Deep Research started in background. Check status for updates."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/research/debug/diagnose")

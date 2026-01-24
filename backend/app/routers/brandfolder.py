@@ -177,6 +177,63 @@ async def execute_research(session_id: str, background_tasks: fastapi.Background
         background_tasks.add_task(service.execute_session, session_id)
         
         return {"message": "Deep Research started in background. Check status for updates."}
+
+
+@router.get("/research/debug/diagnose")
+async def debug_research_config():
+    """Diagnostic endpoint to check why Research might be failing."""
+    import os
+    import sqlite3
+    
+    report = {
+        "env_vars": {
+            "BRANDFOLDER_API_KEY_EXISTS": bool(os.environ.get("BRANDFOLDER_API_KEY")),
+            "GOOGLE_API_KEY_EXISTS": bool(os.environ.get("GOOGLE_API_KEY")),
+            "RAILWAY_ENVIRONMENT": os.environ.get("RAILWAY_ENVIRONMENT_NAME", "local")
+        },
+        "volume": {
+            "exists": os.path.exists("/app/brain_data"),
+            "writable": os.access("/app/brain_data", os.W_OK) if os.path.exists("/app/brain_data") else "N/A"
+        },
+        "db": {
+            "path": "/app/brain_data/irresistible_app.db" if os.path.exists("/app/brain_data") else "local",
+            "connection": "pending"
+        },
+        "services": {}
+    }
+    
+    # Test DB
+    try:
+        db_path = report["db"]["path"]
+        if db_path == "local":
+             current_dir = os.path.dirname(os.path.abspath(__file__))
+             db_path = os.path.abspath(os.path.join(current_dir, "../../..", "irresistible_app.db"))
+             
+        conn = sqlite3.connect(db_path)
+        c = conn.cursor()
+        c.execute("SELECT 1")
+        conn.close()
+        report["db"]["connection"] = "ok"
+    except Exception as e:
+        report["db"]["connection"] = f"failed: {str(e)}"
+        
+    # Test Services Init
+    try:
+        from ..services.brandfolder_service import BrandfolderAPI
+        api = BrandfolderAPI()
+        bfs = api.get_brandfolders()
+        report["services"]["brandfolder"] = f"ok (found {len(bfs)})"
+    except Exception as e:
+        report["services"]["brandfolder"] = f"failed: {str(e)}"
+        
+    try:
+        from ..services.chat_service import ChatService
+        chat = ChatService()
+        report["services"]["chat"] = "ok" if chat.llm else "ok (no key)"
+    except Exception as e:
+        report["services"]["chat"] = f"failed: {str(e)}"
+        
+    return report
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

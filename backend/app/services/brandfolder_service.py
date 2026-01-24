@@ -126,10 +126,9 @@ class BrandfolderAPI:
         result = self._request("GET", endpoint, params)
         
         # Map included attachments to assets
-        assets = result.get("data", [])
-        included = result.get("included", [])
+        assets = result.get("data") or []
+        included = result.get("included") or []
         return self._map_attachments_to_assets(assets, included)
-
     
     def search_assets(self, brandfolder_id: str, query: str, 
                       include_attachments: bool = True) -> List[Dict]:
@@ -151,8 +150,8 @@ class BrandfolderAPI:
         result = self._request("GET", f"/brandfolders/{brandfolder_id}/assets", params)
         
         # Map included attachments to assets
-        assets = result.get("data", [])
-        included = result.get("included", [])
+        assets = result.get("data") or []
+        included = result.get("included") or []
         return self._map_attachments_to_assets(assets, included)
     
     def _map_attachments_to_assets(self, assets: List[Dict], included: List[Dict]) -> List[Dict]:

@@ -101,7 +101,7 @@ class ResearchService:
         
         proposed_assets = []
         
-        for asset in raw_assets[:20]: # Cap at 20 for proposal
+        for asset in raw_assets[:100]: # Increased cap from 20 to 100 for deeper research
             info = self.bf_api.extract_asset_info(asset)
             
             # Determine type

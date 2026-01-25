@@ -71,6 +71,15 @@ class MediaService:
                     continue
             
             if not response:
+                # DEBUG: List what IS available to help diagnose
+                try:
+                    print("🔍 Listing available models from API...")
+                    for m in genai.list_models():
+                        if 'generateContent' in m.supported_generation_methods:
+                            print(f"   - {m.name}")
+                except Exception as list_e:
+                    print(f"⚠️ Could not list models: {list_e}")
+                    
                 raise ValueError(f"All Gemini models failed. Last error: {last_error}")
             
             # Clean up (delete from cloud to save space/privacy)

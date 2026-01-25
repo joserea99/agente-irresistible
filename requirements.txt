@@ -2,7 +2,7 @@ fastapi
 uvicorn
 pydantic
 python-dotenv
-google-generativeai
+google-generativeai>=0.8.3
 chromadb
 requests
 python-multipart

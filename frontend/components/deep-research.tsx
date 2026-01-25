@@ -53,14 +53,30 @@ export default function DeepResearch() {
     };
 
     // Polling Logic - Safe with cleanup
+    // Polling Logic - Safe with cleanup
     useEffect(() => {
         let interval: NodeJS.Timeout;
+        const activeId = session?.session_id || session?.id;
 
-        if (view === 'executing' && session?.session_id) {
+        if (view === 'executing' && activeId) {
+            // Immediate fetch on mount to hydrate assets if missing
+            const fetchData = async () => {
+                try {
+                    const res = await api.get(`/brandfolder/research/${activeId}?t=${Date.now()}`);
+                    setSession(res.data);
+                    if (res.data.status === 'completed') {
+                        setLoading(false);
+                        // Don't stop polling immediately if we just mounted, 
+                        // but logic below handles interval clearing.
+                    }
+                } catch (e) { console.error(e); }
+            };
+            fetchData();
+
             interval = setInterval(async () => {
                 try {
                     // Cache bust to ensure fresh status
-                    const res = await api.get(`/brandfolder/research/${session.session_id}?t=${Date.now()}`);
+                    const res = await api.get(`/brandfolder/research/${activeId}?t=${Date.now()}`);
                     setSession(res.data);
 
                     if (res.data.status === 'completed') {
@@ -75,7 +91,7 @@ export default function DeepResearch() {
         }
 
         return () => clearInterval(interval);
-    }, [view, session?.session_id]);
+    }, [view, session?.session_id, session?.id]);
 
     const executeResearch = async () => {
         if (!session) return;

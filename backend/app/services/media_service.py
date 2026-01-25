@@ -47,12 +47,16 @@ class MediaService:
             
             # Model Fallback Strategy
             # The library/API version might vary, so we try multiple known aliases
+            # Updated based on live diagnostics: User has access to Gemini 2.0/2.5
             models_to_try = [
+                "gemini-2.0-flash",
+                "gemini-2.0-flash-001",
+                "gemini-2.5-flash",
                 "gemini-1.5-flash",
                 "gemini-1.5-flash-001",
                 "gemini-1.5-pro",
                 "gemini-1.5-pro-001",
-                "gemini-pro-vision" # Last resort for older envs (Supports video)
+                "gemini-pro-vision"
             ]
             
             response = None

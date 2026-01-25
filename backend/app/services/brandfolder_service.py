@@ -224,8 +224,9 @@ class BrandfolderAPI:
                 headers=headers,
                 cookies=cookies,
                 stream=True,
-                timeout=120
+                timeout=(10, 300) # 10s connect, 300s (5min) read timeout per chunk
             )
+
             response.raise_for_status()
             
             # Determine file extension

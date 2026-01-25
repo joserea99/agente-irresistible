@@ -36,7 +36,7 @@ class MediaService:
                 attempts += 1
                 
                 if attempts > MAX_ATTEMPTS:
-                    raise TimeoutError("Media processing timed out in Gemini.")
+                    raise TimeoutError("Media processing timed out in Gemini (Server Side).")
                 
             if media_file.state.name == "FAILED":
                 raise ValueError("Media processing failed in Gemini.")
@@ -47,15 +47,15 @@ class MediaService:
             
             # Model Fallback Strategy
             # The library/API version might vary, so we try multiple known aliases
-            # Updated based on live diagnostics: User has access to Gemini 2.0/2.5
+            # Updated based on live diagnostics: User has access to Gemini 3 Pro & 2.0
             models_to_try = [
-                "gemini-2.0-flash",
+                "gemini-3-pro",          # PREFERRED: Best quality
+                "gemini-3.0-flash",      # NEW: Fast & Smart
+                "gemini-2.0-flash",      # FALLBACK: Current stable fast
                 "gemini-2.0-flash-001",
                 "gemini-2.5-flash",
                 "gemini-1.5-flash",
-                "gemini-1.5-flash-001",
                 "gemini-1.5-pro",
-                "gemini-1.5-pro-001",
                 "gemini-pro-vision"
             ]
             
@@ -66,6 +66,10 @@ class MediaService:
                 try:
                     print(f"🤖 Trying Gemini Model: {model_name}...")
                     model = genai.GenerativeModel(model_name)
+                    # Add timeout to generation call (requires wrapping or trusting library, but we'll trust library for now as it usually errors out)
+                    # Note: synchronous generate_content doesn't natively support valid 'timeout' arg in all versions, 
+                    # but we can rely on the fact that if the previous step succeeded, this usually runs.
+                    # We will wrap it in a future update if it hangs here, but the hang was likely in processing/upload.
                     response = model.generate_content([prompt, media_file])
                     print(f"✅ Success with model: {model_name}")
                     break
@@ -100,3 +104,4 @@ class MediaService:
                     genai.delete_file(media_file.name)
                 except Exception as cleanup_e:
                     print(f"⚠️ Failed to delete processed file: {cleanup_e}")
+

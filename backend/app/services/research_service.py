@@ -275,6 +275,7 @@ class ResearchService:
                 c.execute("UPDATE research_assets SET status='indexed' WHERE id=?", (asset['id'],))
                 conn.commit()
                 stats["indexed"] += 1
+                print(f"✅ [Research] Asset {asset['id']} ({asset['name']}) indexed & saved.")
                 
             except Exception as e:
                 print(f"Failed asset {asset['id']}: {e}")

@@ -59,7 +59,8 @@ export default function DeepResearch() {
         if (view === 'executing' && session?.session_id) {
             interval = setInterval(async () => {
                 try {
-                    const res = await api.get(`/brandfolder/research/${session.session_id}`);
+                    // Cache bust to ensure fresh status
+                    const res = await api.get(`/brandfolder/research/${session.session_id}?t=${Date.now()}`);
                     setSession(res.data);
 
                     if (res.data.status === 'completed') {

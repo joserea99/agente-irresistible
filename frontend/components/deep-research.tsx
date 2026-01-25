@@ -129,7 +129,12 @@ export default function DeepResearch() {
                         <div className="grid gap-3 md:grid-cols-2">
                             {history.map((h) => (
                                 <Card key={h.id} className="hover:bg-slate-800/50 transition-colors cursor-pointer border-slate-800"
-                                    onClick={() => { setSession(h); setView(h.status === 'completed' ? 'executing' : 'proposal'); }}>
+                                    onClick={() => {
+                                        setSession(h);
+                                        // If it's done OR running, go to executing view (results/progress)
+                                        // Otherwise go to proposal (start)
+                                        setView((h.status === 'completed' || h.status === 'processing') ? 'executing' : 'proposal');
+                                    }}>
                                     <div className="p-4 flex justify-between items-center">
                                         <div>
                                             <p className="font-medium">{h.query}</p>

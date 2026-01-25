@@ -86,11 +86,17 @@ class MediaService:
                     
                 raise ValueError(f"All Gemini models failed. Last error: {last_error}")
             
-            # Clean up (delete from cloud to save space/privacy)
-            # genai.delete_file(media_file.name) # Optional: uncomment if immediate cleanup is desired
-            
             return response.text
             
         except Exception as e:
             print(f"❌ Transcription error: {str(e)}")
             return f"Error transcribing media: {str(e)}"
+        
+        finally:
+            # Clean up (delete from cloud to save space/privacy)
+            if 'media_file' in locals() and media_file:
+                try:
+                    print(f"🗑️ Deleting remote file: {media_file.name}")
+                    genai.delete_file(media_file.name)
+                except Exception as cleanup_e:
+                    print(f"⚠️ Failed to delete processed file: {cleanup_e}")

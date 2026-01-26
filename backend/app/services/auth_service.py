@@ -181,6 +181,6 @@ def update_user_role(username, role):
     conn.close()
 
 
-# Initialize DB on first import
-if not os.path.exists(DB_PATH):
-    init_db()
+# Initialize DB structure and run migrations on import
+# This ensures that if we deploy with an existing volume, new columns get added
+init_db()

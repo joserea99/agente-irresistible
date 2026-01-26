@@ -215,6 +215,21 @@ class ResearchService:
         conn.close()
         return {**session, "assets": assets}
 
+    def get_cached_content(self, asset_id: str) -> str:
+        """Checks if we already have a transcription for this asset from a previous session."""
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            c = conn.cursor()
+            # Look for ANY asset record with this asset_id that has content
+            # We enforce content length > 50 to avoid caching empty/failed prompts
+            c.execute("SELECT content FROM research_assets WHERE asset_id=? AND length(content) > 50 LIMIT 1", (asset_id,))
+            row = c.fetchone()
+            conn.close()
+            return row[0] if row else None
+        except Exception as e:
+            print(f"⚠️ Cache lookup failed: {e}")
+            return None
+
     def execute_session(self, session_id: str):
         """
         Step 2: Execute.
@@ -247,35 +262,41 @@ class ResearchService:
                 self.rag = RAGManager()
 
             try:
-                # 1. Transcribe if media
-                content = f"Asset: {asset['name']}\nType: {asset['type']}"
+                # 0. Check Cache First!
+                content = self.get_cached_content(asset['asset_id'])
                 
-                if asset['type'] in ['video', 'audio']:
-                    # REFRESH URL: Stored URL might be expired signed URL
-                    try:
-                        fresh_details = self.bf_api.get_asset_details(asset['asset_id'])
-                        fresh_info = self.bf_api.extract_asset_info(fresh_details)
-                        
-                        fresh_url = None
-                        for att in fresh_info['attachments']:
-                             mimetype = att.get('mimetype') or ''
-                             if asset['type'] == 'video' and 'video' in mimetype:
-                                 fresh_url = att.get('url')
-                                 break
-                             if asset['type'] == 'audio' and 'audio' in mimetype:
-                                 fresh_url = att.get('url')
-                                 break
-                        
-                        if fresh_url and fresh_url.startswith('http'):
-                            local_path = self.bf_api.download_attachment(fresh_url)
-                            if local_path:
-                                transcript = self.media_service.transcribe_media(local_path, mime_type='video/mp4' if asset['type']=='video' else 'audio/mp3')
-                                content += f"\n\n--- TRANSCRIPT ---\n{transcript}"
-                                os.remove(local_path)
-                    except Exception as e:
-                        print(f"⚠️ Failed to refresh/download media {asset['asset_id']}: {e}")
-                        # Don't fail the whole asset logic, just skip transcript
-                        content += f"\n\n[Transcription Failed: {e}]"
+                if content:
+                    print(f"♻️ CACHE HIT: Reusing existing content for {asset['name']}")
+                else:
+                    # 1. Transcribe if media (Cache Miss)
+                    content = f"Asset: {asset['name']}\nType: {asset['type']}"
+                    
+                    if asset['type'] in ['video', 'audio']:
+                        # REFRESH URL: Stored URL might be expired signed URL
+                        try:
+                            fresh_details = self.bf_api.get_asset_details(asset['asset_id'])
+                            fresh_info = self.bf_api.extract_asset_info(fresh_details)
+                            
+                            fresh_url = None
+                            for att in fresh_info['attachments']:
+                                 mimetype = att.get('mimetype') or ''
+                                 if asset['type'] == 'video' and 'video' in mimetype:
+                                     fresh_url = att.get('url')
+                                     break
+                                 if asset['type'] == 'audio' and 'audio' in mimetype:
+                                     fresh_url = att.get('url')
+                                     break
+                            
+                            if fresh_url and fresh_url.startswith('http'):
+                                local_path = self.bf_api.download_attachment(fresh_url)
+                                if local_path:
+                                    transcript = self.media_service.transcribe_media(local_path, mime_type='video/mp4' if asset['type']=='video' else 'audio/mp3')
+                                    content += f"\n\n--- TRANSCRIPT ---\n{transcript}"
+                                    os.remove(local_path)
+                        except Exception as e:
+                            print(f"⚠️ Failed to refresh/download media {asset['asset_id']}: {e}")
+                            # Don't fail the whole asset logic, just skip transcript
+                            content += f"\n\n[Transcription Failed: {e}]"
                 
                 # 2. Index to Chroma
                 # Source needs to be the clickable link

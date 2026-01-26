@@ -106,6 +106,28 @@ export default function DeepResearch() {
         }
     };
 
+    const syncResearch = async (e: React.MouseEvent, id: string) => {
+        e.stopPropagation();
+        const btn = e.currentTarget as HTMLButtonElement;
+        const originalText = btn.innerText;
+        btn.innerText = "Syncing...";
+        btn.disabled = true;
+
+        try {
+            const res = await api.post(`/brandfolder/research/${id}/sync`);
+            alert(`✅ ${res.data.message}`);
+        } catch (err: any) {
+            console.error(err);
+            alert("❌ Sync failed: " + (err.response?.data?.detail || err.message));
+        } finally {
+            btn.innerText = "Synced";
+            setTimeout(() => {
+                btn.innerText = "Sync to Brain";
+                btn.disabled = false;
+            }, 3000);
+        }
+    };
+
     // --- UI COMPONENTS ---
 
     if (view === 'search') {
@@ -144,7 +166,7 @@ export default function DeepResearch() {
                         <h3 className="text-xl font-semibold opacity-80">Research History</h3>
                         <div className="grid gap-3 md:grid-cols-2">
                             {history.map((h) => (
-                                <Card key={h.id} className="hover:bg-slate-800/50 transition-colors cursor-pointer border-slate-800"
+                                <Card key={h.id} className="hover:bg-slate-800/50 transition-colors cursor-pointer border-slate-800 group"
                                     onClick={() => {
                                         setSession(h);
                                         // If it's done OR running, go to executing view (results/progress)
@@ -153,12 +175,24 @@ export default function DeepResearch() {
                                     }}>
                                     <div className="p-4 flex justify-between items-center">
                                         <div>
-                                            <p className="font-medium">{h.query}</p>
+                                            <p className="font-medium group-hover:text-primary transition-colors">{h.query}</p>
                                             <p className="text-xs text-muted-foreground">{new Date(h.created_at).toLocaleDateString()}</p>
                                         </div>
-                                        <Badge variant={h.status === 'completed' ? 'default' : 'secondary'}>
-                                            {h.status}
-                                        </Badge>
+                                        <div className="flex items-center gap-2">
+                                            {h.status === 'completed' && (
+                                                <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    className="h-7 text-xs border border-slate-700 hover:bg-slate-700"
+                                                    onClick={(e) => syncResearch(e, h.id)}
+                                                >
+                                                    Sync to Brain 🧠
+                                                </Button>
+                                            )}
+                                            <Badge variant={h.status === 'completed' ? 'default' : 'secondary'}>
+                                                {h.status}
+                                            </Badge>
+                                        </div>
                                     </div>
                                 </Card>
                             ))}

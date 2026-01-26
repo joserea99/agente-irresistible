@@ -45,6 +45,16 @@ class ResearchService:
         ''')
         
         # Assets: The items found in a session
+        # Check if 'content' column exists (migration for existing DB)
+        try:
+            c.execute("SELECT content FROM research_assets LIMIT 1")
+        except sqlite3.OperationalError:
+            print("⚠️ [Migration] Adding 'content' column to research_assets table...")
+            try:
+                c.execute("ALTER TABLE research_assets ADD COLUMN content TEXT")
+            except Exception as e:
+                print(f"Migration Note: {e} (Table might not exist yet)")
+
         c.execute('''
             CREATE TABLE IF NOT EXISTS research_assets (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -54,6 +64,7 @@ class ResearchService:
                 type TEXT, -- video, audio, image, document
                 url TEXT,
                 status TEXT DEFAULT 'pending', -- pending, transcribed, indexed, error
+                content TEXT,
                 FOREIGN KEY (session_id) REFERENCES research_sessions (id)
             )
         ''')
@@ -262,7 +273,7 @@ class ResearchService:
                                 content += f"\n\n--- TRANSCRIPT ---\n{transcript}"
                                 os.remove(local_path)
                     except Exception as e:
-                        print(f"⚠️ Failed to refresh/download media {asset['id']}: {e}")
+                        print(f"⚠️ Failed to refresh/download media {asset['asset_id']}: {e}")
                         # Don't fail the whole asset logic, just skip transcript
                         content += f"\n\n[Transcription Failed: {e}]"
                 
@@ -271,8 +282,8 @@ class ResearchService:
                 source_link = f"https://brandfolder.com/workbench/{asset['asset_id']}"
                 self.rag.add_document(content, source_link, title=asset['name'])
                 
-                # 3. Update Status
-                c.execute("UPDATE research_assets SET status='indexed' WHERE id=?", (asset['id'],))
+                # 3. Update Status and Content in DB
+                c.execute("UPDATE research_assets SET status='indexed', content=? WHERE id=?", (content, asset['id']))
                 conn.commit()
                 stats["indexed"] += 1
                 print(f"✅ [Research] Asset {asset['id']} ({asset['name']}) indexed & saved.")
@@ -288,3 +299,58 @@ class ResearchService:
         conn.close()
         
         return stats
+
+    def sync_to_knowledge_base(self, session_id: str) -> dict:
+        """
+        Manually syncs a completed session to the Knowledge Base.
+        Useful if automatic indexing failed or wasn't persisted.
+        """
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+        
+        c.execute("SELECT * FROM research_assets WHERE session_id=?", (session_id,))
+        assets = [dict(r) for r in c.fetchall()]
+        conn.close()
+        
+        from .rag_service import RAGManager
+        if not self.rag:
+            self.rag = RAGManager()
+            
+        synced = 0
+        skipped = 0
+        failed = 0
+        
+        for asset in assets:
+            try:
+                # If we have content in DB, use it
+                content = asset.get('content')
+                source_link = f"https://brandfolder.com/workbench/{asset['asset_id']}"
+                title = asset['name']
+                
+                if content:
+                    print(f"🔄 Syncing '{title}' from DB content...")
+                    if self.rag.add_document(content, source_link, title=title):
+                        synced += 1
+                    else:
+                        skipped += 1 # Already exists
+                else:
+                    # If no content (old history), we can't fully sync without re-transcription
+                    # But we can check if it's already in the Vector DB
+                    if self.rag.document_exists(source_link):
+                        skipped += 1
+                    else:
+                        print(f"⚠️ Cannot sync '{title}' - No content preserved in DB.")
+                        failed += 1
+                        
+            except Exception as e:
+                print(f"❌ Sync Error for {asset['asset_id']}: {e}")
+                failed += 1
+                
+        return {
+            "total": len(assets),
+            "synced": synced,
+            "skipped": skipped, 
+            "failed_no_content": failed,
+            "message": f"Synced {synced} new items. {skipped} already in generic base."
+        }

@@ -180,6 +180,20 @@ async def execute_research(session_id: str, background_tasks: fastapi.Background
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.post("/research/{session_id}/sync")
+async def sync_research_to_kb(session_id: str):
+    """
+    Manually syncs a session's assets to the Knowledge Base.
+    Useful for ensuring everything is in RAG/Brain.
+    """
+    try:
+        from ..services.research_service import ResearchService
+        service = ResearchService()
+        result = service.sync_to_knowledge_base(session_id)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/research/debug/diagnose")
 async def debug_research_config():

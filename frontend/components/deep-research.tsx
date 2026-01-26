@@ -114,6 +114,7 @@ export default function DeepResearch() {
         btn.disabled = true;
 
         try {
+            const res = await api.post(`/brandfolder/research/${id}/sync`);
             const d = res.data;
             let msg = `✅ Sync Complete!\n\n`;
             msg += `🆕 Synced (New): ${d.synced}\n`;

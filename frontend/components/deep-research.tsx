@@ -114,8 +114,14 @@ export default function DeepResearch() {
         btn.disabled = true;
 
         try {
-            const res = await api.post(`/brandfolder/research/${id}/sync`);
-            alert(`✅ ${res.data.message}`);
+            const d = res.data;
+            let msg = `✅ Sync Complete!\n\n`;
+            msg += `🆕 Synced (New): ${d.synced}\n`;
+            msg += `⏭️ Skipped (Already in Brain): ${d.skipped}\n`;
+            if (d.failed_no_content > 0) {
+                msg += `⚠️ Failed (No Content): ${d.failed_no_content}\n`;
+            }
+            alert(msg);
         } catch (err: any) {
             console.error(err);
             alert("❌ Sync failed: " + (err.response?.data?.detail || err.message));

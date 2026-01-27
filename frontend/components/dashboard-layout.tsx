@@ -29,7 +29,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         { href: "/dashboard", label: t.dashboard.overview, icon: LayoutDashboard },
         { href: "/chat", label: t.dashboard.strategicAgent, icon: MessageSquare },
         { href: "/knowledge", label: t.dashboard.knowledgeBase, icon: Database },
-        { href: "/dojo", label: t.dojo.title, icon: Swords },
+        { href: "/dojo", label: t.dojo.title, icon: Swords }, // Leadership Dojo
     ];
 
     const SidebarContent = () => (

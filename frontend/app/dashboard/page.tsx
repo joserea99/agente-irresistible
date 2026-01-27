@@ -135,10 +135,10 @@ export default function DashboardPage() {
                         {/* Quick Actions */}
                         <div>
                             <h3 className="text-lg font-semibold mb-3">{t.dashboard.quickActionsTitle}</h3>
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
                                 {config.quickActions.map((action) => (
                                     <Link href={action.href} key={action.title}>
-                                        <div className={`p-4 rounded-xl border ${action.color} hover:bg-opacity-20 transition-all cursor-pointer h-full flex flex-col justify-between`}>
+                                        <div className={`p-4 rounded-xl border ${action.color} hover:bg-opacity-20 transition-all cursor-pointer h-full flex flex-col justify-between aspect-video sm:aspect-auto`}>
                                             <action.icon className="h-6 w-6 mb-2" />
                                             <div>
                                                 <div className="font-bold text-sm">{action.title}</div>
@@ -168,7 +168,7 @@ export default function DashboardPage() {
                                                     <div className="h-8 w-8 rounded bg-blue-500/10 flex items-center justify-center shrink-0">
                                                         <Clock className="h-4 w-4 text-blue-500" />
                                                     </div>
-                                                    <div className="overflow-hidden">
+                                                    <div className="overflow-hidden min-w-0">
                                                         <p className="text-sm font-medium truncate">{doc.title || "Untitled Asset"}</p>
                                                         <a href={doc.source} target="_blank" className="text-xs text-muted-foreground hover:text-primary hover:underline truncate block">
                                                             {doc.source || "No source link"}

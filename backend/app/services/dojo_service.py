@@ -7,6 +7,8 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import SystemMessage, HumanMessage
 from typing import List, Dict, Optional
 import os
+import json
+import re
 
 # Dojo Scenarios
 DOJO_SCENARIOS = {
@@ -207,7 +209,8 @@ class DojoService:
         scenario_id: str,
         user_input: str,
         history: List[Dict[str, str]] = [],
-        language: str = "es"
+        language: str = "es",
+        custom_system_prompt: Optional[str] = None
     ) -> str:
         """
         Generate roleplay response from the scenario character
@@ -224,12 +227,14 @@ class DojoService:
         if not self.llm:
             return "⚠️ **Error:** No Google Gemini API Key configured."
         
-        scenario = DOJO_SCENARIOS.get(scenario_id)
-        if not scenario:
-            return "Error: Scenario not found"
-        
-        lang_data = scenario.get(language, scenario["es"])
-        system_prompt = lang_data["system_prompt"]
+        if custom_system_prompt:
+             system_prompt = custom_system_prompt
+        else:
+            scenario = DOJO_SCENARIOS.get(scenario_id)
+            if not scenario:
+                return "Error: Scenario not found"
+            lang_data = scenario.get(language, scenario["es"])
+            system_prompt = lang_data["system_prompt"]
         
         # Build messages
         messages = [SystemMessage(content=system_prompt)]
@@ -255,7 +260,8 @@ class DojoService:
         self,
         scenario_id: str,
         history: List[Dict[str, str]],
-        language: str = "es"
+        language: str = "es",
+        system_prompt: Optional[str] = None
     ) -> str:
         """
         Evaluate the user's performance in the roleplay
@@ -271,11 +277,13 @@ class DojoService:
         if not self.llm:
             return "⚠️ **Error:** No Google Gemini API Key configured."
         
-        scenario = DOJO_SCENARIOS.get(scenario_id)
-        if not scenario:
-            return "Error: Scenario not found"
         
-        lang_data = scenario.get(language, scenario["es"])
+        scenario_name = "Custom Scenario"
+        if scenario_id in DOJO_SCENARIOS:
+             scenario = DOJO_SCENARIOS.get(scenario_id)
+             lang_data = scenario.get(language, scenario["es"])
+             scenario_name = lang_data["name"]
+        
         eval_prompt = EVALUATOR_PROMPTS.get(language, EVALUATOR_PROMPTS["es"])
         
         # Build conversation transcript
@@ -287,7 +295,8 @@ class DojoService:
         prompt = f"""
 {eval_prompt}
 
-SCENARIO: {lang_data['name']}
+SCENARIO: {scenario_name}
+SYSTEM PROMPT (If Custom): {system_prompt if system_prompt else "Standard Scenario"}
 
 TRANSCRIPT:
 {conversation_text}
@@ -300,3 +309,46 @@ TRANSCRIPT:
             return response.content
         except Exception as e:
             return f"❌ Error generating evaluation: {str(e)}"
+
+    def create_scenario_from_description(self, description: str, language: str = "es") -> Dict:
+        """
+        Generate a full scenario from a short user description
+        """
+        if not self.llm:
+            return {"error": "No Google Gemini API Key configured."}
+            
+        prompt = f"""
+        TASK: Create a leadership training scenario based on this description: "{description}"
+        
+        OUTPUT FORMAT: JSON (Do not include markdown triple backticks).
+        Target Language: {language}
+        
+        JSON Structure:
+        {{
+            "id": "custom_generated",
+            "name": "Short catchy title",
+            "description": "2 sentence context",
+            "system_prompt": "Full system prompt for the AI to play the role. Include GOAL, TONE, and Context.",
+            "opening_line": "The first thing the character says to the user."
+        }}
+        
+        The 'system_prompt' should be detailed and instruct the AI to stay in character.
+        """
+        
+        messages = [HumanMessage(content=prompt)]
+        
+        try:
+            response = self.llm.invoke(messages)
+            content = response.content.replace("```json", "").replace("```", "").strip()
+            # clean up potential markdown
+            
+            scenario_data = json.loads(content)
+            
+            # Ensure ID is unique-ish if we were saving it, but for now just return it
+            scenario_data["id"] = f"custom_{os.urandom(4).hex()}"
+            
+            return scenario_data
+            
+        except Exception as e:
+            return {"error": f"Failed to generate scenario: {str(e)}"}
+

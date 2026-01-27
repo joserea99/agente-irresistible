@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from "react";
 import { useAuthStore, api } from "@/lib/store";
+import { useLanguage } from "@/lib/language-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -13,6 +14,7 @@ import { useRouter } from "next/navigation";
 
 export default function DeepResearch() {
     const { user } = useAuthStore();
+    const { t } = useLanguage();
     const router = useRouter();
     const [query, setQuery] = useState("");
     const [loading, setLoading] = useState(false);
@@ -110,7 +112,7 @@ export default function DeepResearch() {
         e.stopPropagation();
         const btn = e.currentTarget as HTMLButtonElement;
         const originalText = btn.innerText;
-        btn.innerText = "Syncing...";
+        btn.innerText = t.deepResearch.syncing;
         btn.disabled = true;
 
         try {
@@ -127,9 +129,9 @@ export default function DeepResearch() {
             console.error(err);
             alert("❌ Sync failed: " + (err.response?.data?.detail || err.message));
         } finally {
-            btn.innerText = "Synced";
+            btn.innerText = t.deepResearch.synced;
             setTimeout(() => {
-                btn.innerText = "Sync to Brain";
+                btn.innerText = t.deepResearch.syncToBrain;
                 btn.disabled = false;
             }, 3000);
         }
@@ -142,10 +144,10 @@ export default function DeepResearch() {
             <div className="max-w-4xl mx-auto space-y-8">
                 <div className="text-center space-y-4">
                     <h1 className="text-4xl font-bold font-heading bg-gradient-to-r from-primary to-purple-400 bg-clip-text text-transparent">
-                        Deep Research Agent
+                        {t.deepResearch.title}
                     </h1>
                     <p className="text-muted-foreground text-lg">
-                        I will scan your Brandfolder, map key themes, and deeply analyze every asset.
+                        {t.deepResearch.subtitle}
                     </p>
                 </div>
 
@@ -154,7 +156,7 @@ export default function DeepResearch() {
                         <Input
                             value={query}
                             onChange={(e) => setQuery(e.target.value)}
-                            placeholder="What do you want to learn about? (e.g., 'Sermones sobre el voluntariado')"
+                            placeholder={t.deepResearch.placeholder}
                             className="text-lg py-6 bg-slate-950/50 border-slate-700"
                         />
                         <Button
@@ -170,7 +172,7 @@ export default function DeepResearch() {
 
                 {history.length > 0 && (
                     <div className="space-y-4">
-                        <h3 className="text-xl font-semibold opacity-80">Research History</h3>
+                        <h3 className="text-xl font-semibold opacity-80">{t.deepResearch.history}</h3>
                         <div className="grid gap-3 md:grid-cols-2">
                             {history.map((h) => (
                                 <Card key={h.id} className="hover:bg-slate-800/50 transition-colors cursor-pointer border-slate-800 group"
@@ -193,7 +195,7 @@ export default function DeepResearch() {
                                                     className="h-7 text-xs border border-slate-700 hover:bg-slate-700"
                                                     onClick={(e) => syncResearch(e, h.id)}
                                                 >
-                                                    Sync to Brain 🧠
+                                                    {t.deepResearch.syncToBrain} 🧠
                                                 </Button>
                                             )}
                                             <Badge variant={h.status === 'completed' ? 'default' : 'secondary'}>
@@ -217,8 +219,8 @@ export default function DeepResearch() {
 
                 <Card className="border-primary/20 bg-slate-900/80">
                     <CardHeader>
-                        <CardTitle className="text-2xl">Research Proposal: "{session.query}"</CardTitle>
-                        <CardDescription>I have scanned your Brandfolder and found the following:</CardDescription>
+                        <CardTitle className="text-2xl">{t.deepResearch.proposalTitle}: "{session.query}"</CardTitle>
+                        <CardDescription>{t.deepResearch.proposalSubtitle}</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">
                         <div className="p-4 bg-primary/10 rounded-lg text-primary-foreground">
@@ -228,16 +230,16 @@ export default function DeepResearch() {
                         <div className="grid grid-cols-2 gap-4">
                             <div className="p-4 bg-slate-950 rounded border border-slate-800 text-center">
                                 <p className="text-3xl font-bold">{session.asset_count}</p>
-                                <p className="text-sm text-muted-foreground">Assets Found</p>
+                                <p className="text-sm text-muted-foreground">{t.deepResearch.assetsFound}</p>
                             </div>
                             <div className="p-4 bg-slate-950 rounded border border-slate-800 text-center">
                                 <p className="text-3xl font-bold">~{session.assets?.filter((a: any) => a.type === 'video').length * 2 || 1}</p>
-                                <p className="text-sm text-muted-foreground">Est. Minutes to Process</p>
+                                <p className="text-sm text-muted-foreground">{t.deepResearch.estMinutes}</p>
                             </div>
                         </div>
 
                         <div>
-                            <h3 className="font-semibold mb-2">Assets identified for transcription:</h3>
+                            <h3 className="font-semibold mb-2">{t.deepResearch.assetsIdentified}</h3>
                             <div className="max-h-60 overflow-y-auto space-y-2 pr-2">
                                 {session.assets?.map((a: any) => (
                                     <div key={a.id} className="flex items-center gap-3 p-2 rounded bg-slate-800/50 text-sm">
@@ -252,10 +254,10 @@ export default function DeepResearch() {
                         </div>
                     </CardContent>
                     <CardFooter className="flex justify-end gap-3">
-                        <Button variant="outline" onClick={() => setView('search')}>Cancel</Button>
+                        <Button variant="outline" onClick={() => setView('search')}>{t.deepResearch.cancel}</Button>
                         <Button onClick={executeResearch} disabled={loading} className="bg-green-600 hover:bg-green-700">
                             {loading ? <Loader2 className="animate-spin mr-2" /> : <Play className="mr-2" size={16} />}
-                            Begin Deep Research
+                            {t.deepResearch.begin}
                         </Button>
                     </CardFooter>
                 </Card>
@@ -279,10 +281,10 @@ export default function DeepResearch() {
                     )}
 
                     <h2 className="text-3xl font-bold mb-2">
-                        {isDone ? "Research Complete" : "Executing Deep Research..."}
+                        {isDone ? t.deepResearch.complete : t.deepResearch.executing}
                     </h2>
                     <p className="text-muted-foreground text-lg mb-8">
-                        {isDone ? "All assets have been transcribed and indexed." : "I am watching videos, listening to audio, and reading documents."}
+                        {isDone ? t.deepResearch.completeDesc : t.deepResearch.executingDesc}
                     </p>
 
                     {/* Progress Bar */}
@@ -292,13 +294,13 @@ export default function DeepResearch() {
                             style={{ width: `${progress}%` }}
                         />
                     </div>
-                    <p className="text-sm text-muted-foreground">{completed} / {total} Assets Processed</p>
+                    <p className="text-sm text-muted-foreground">{completed} / {total} {t.deepResearch.assetsProcessed}</p>
                 </motion.div>
 
                 {isDone && (
                     <div className="flex justify-center gap-4">
-                        <Button variant="outline" onClick={() => setView('search')}>Start New Research</Button>
-                        <Button onClick={() => router.push('/chat')}>Go to Chat & Ask</Button>
+                        <Button variant="outline" onClick={() => setView('search')}>{t.deepResearch.startNew}</Button>
+                        <Button onClick={() => router.push('/chat')}>{t.deepResearch.goToChat}</Button>
                     </div>
                 )}
 
@@ -306,9 +308,9 @@ export default function DeepResearch() {
                     {session.assets?.map((a: any) => (
                         <div key={a.id} className="flex justify-between py-2 border-b border-slate-800/50 last:border-0">
                             <span className="text-sm opacity-80">{a.name}</span>
-                            {a.status === 'pending' && <span className="text-xs text-slate-500">Pending...</span>}
-                            {a.status === 'indexed' && <span className="text-xs text-green-400 font-medium">Done</span>}
-                            {a.status === 'error' && <span className="text-xs text-red-400">Error</span>}
+                            {a.status === 'pending' && <span className="text-xs text-slate-500">{t.deepResearch.pending}</span>}
+                            {a.status === 'indexed' && <span className="text-xs text-green-400 font-medium">{t.deepResearch.done}</span>}
+                            {a.status === 'error' && <span className="text-xs text-red-400">{t.deepResearch.error}</span>}
                         </div>
                     ))}
                 </div>

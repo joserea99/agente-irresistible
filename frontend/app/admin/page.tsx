@@ -10,7 +10,7 @@ import { useAuthStore, api } from "@/lib/store";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Trash2, UserCog, ShieldAlert } from "lucide-react";
-import { ROLE_CONFIGS } from "@/lib/dashboard-config";
+import { AVAILABLE_ROLES } from "@/lib/dashboard-config";
 
 interface UserData {
     username: string;
@@ -78,9 +78,10 @@ export default function AdminPage() {
     // Get all available roles from our config + admin/member
     const availableRoles = Array.from(new Set([
         "admin",
+        "admin",
         "member",
-        ...Object.keys(ROLE_CONFIGS)
-    ])).filter(r => r !== 'default'); // Remove internal keys if any
+        ...AVAILABLE_ROLES
+    ]));
 
     return (
         <DashboardLayout>

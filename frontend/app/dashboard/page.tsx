@@ -23,7 +23,7 @@ export default function DashboardPage() {
     const [previewRole, setPreviewRole] = useState<string>(user?.role || "member");
 
     // Get config based on previewRole directly
-    const config = getDashboardConfig(previewRole);
+    const config = getDashboardConfig(previewRole, t);
 
     useEffect(() => {
         if (user?.role) {
@@ -54,7 +54,7 @@ export default function DashboardPage() {
 
     // Merge dynamic data into config stats
     const stats = config.stats.map(stat => {
-        if (stat.label === "Knowledge Base" || stat.label === "Brand Assets") {
+        if (stat.label === t.dashboard.knowledgeBase || stat.label === "Brand Assets") {
             return { ...stat, value: knowledgeCount };
         }
         return stat;
@@ -84,19 +84,19 @@ export default function DashboardPage() {
                         <div className="hidden md:block w-[180px]">
                             <Select value={previewRole} onValueChange={setPreviewRole}>
                                 <SelectTrigger className="h-9 text-xs">
-                                    <SelectValue placeholder="Preview Role" />
+                                    <SelectValue placeholder={t.dashboard.previewRole} />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="pastor_principal">Pastor Principal</SelectItem>
-                                    <SelectItem value="kids_director">Kids Director</SelectItem>
-                                    <SelectItem value="media_director">Media Director</SelectItem>
-                                    <SelectItem value="member">Member (Default)</SelectItem>
+                                    <SelectItem value="pastor_principal">{t.dashboard.pastorPrincipal}</SelectItem>
+                                    <SelectItem value="kids_director">{t.dashboard.kidsNextGen}</SelectItem>
+                                    <SelectItem value="media_director">{t.dashboard.mediaDirector}</SelectItem>
+                                    <SelectItem value="member">{t.dashboard.member}</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
 
                         <Link href="/chat">
-                            <Button>New Session <ArrowRight className="ml-2 h-4 w-4" /></Button>
+                            <Button>{t.dashboard.newSession} <ArrowRight className="ml-2 h-4 w-4" /></Button>
                         </Link>
                     </div>
                 </div>
@@ -134,7 +134,7 @@ export default function DashboardPage() {
 
                         {/* Quick Actions */}
                         <div>
-                            <h3 className="text-lg font-semibold mb-3">Quick Actions</h3>
+                            <h3 className="text-lg font-semibold mb-3">{t.dashboard.quickActionsTitle}</h3>
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 {config.quickActions.map((action) => (
                                     <Link href={action.href} key={action.title}>
@@ -155,9 +155,9 @@ export default function DashboardPage() {
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2">
                                     <Library className="h-5 w-5 text-blue-500" />
-                                    Latest Knowledge Assets
+                                    {t.dashboard.recentKnowledge}
                                 </CardTitle>
-                                <CardDescription>Recently ingested from Brandfolder</CardDescription>
+                                <CardDescription>{t.dashboard.recentDescription}</CardDescription>
                             </CardHeader>
                             <CardContent>
                                 <div className="space-y-4">
@@ -182,9 +182,9 @@ export default function DashboardPage() {
                                         ))
                                     ) : (
                                         <div className="text-center py-8 text-muted-foreground">
-                                            <p>No recent documents found.</p>
+                                            <p>{t.dashboard.noRecentDocs}</p>
                                             <Link href="/knowledge">
-                                                <Button variant="link" className="text-xs">Go to Ingest</Button>
+                                                <Button variant="link" className="text-xs">{t.dashboard.goToIngest}</Button>
                                             </Link>
                                         </div>
                                     )}
@@ -192,7 +192,7 @@ export default function DashboardPage() {
                             </CardContent>
                             <CardFooter>
                                 <Link href="/knowledge" className="w-full">
-                                    <Button variant="outline" className="w-full text-xs">View Knowledge Base</Button>
+                                    <Button variant="outline" className="w-full text-xs">{t.dashboard.viewKnowledge}</Button>
                                 </Link>
                             </CardFooter>
                         </Card>
@@ -203,16 +203,16 @@ export default function DashboardPage() {
                         {/* Directors Status */}
                         <Card>
                             <CardHeader>
-                                <CardTitle>Active Directors</CardTitle>
-                                <CardDescription>AI Personas ready to assist</CardDescription>
+                                <CardTitle>{t.dashboard.activeDirectors}</CardTitle>
+                                <CardDescription>{t.dashboard.directorsDesc}</CardDescription>
                             </CardHeader>
                             <CardContent>
                                 <div className="space-y-4">
                                     {[
-                                        { name: "Pastor Principal", role: "Vision & Strategy", status: "Online", color: "bg-green-500" },
-                                        { name: "Service Programming", role: "Services", status: "Busy", color: "bg-yellow-500" },
-                                        { name: "Kids & NextGen", role: "Family Ministry", status: "Online", color: "bg-green-500" },
-                                        { name: "Media Director", role: "Creative", status: "Online", color: "bg-pink-500" },
+                                        { name: t.dashboard.pastorPrincipal, role: t.dashboard.visionStrategy, status: t.dashboard.status.online, color: "bg-green-500" },
+                                        { name: t.dashboard.serviceProgramming, role: t.dashboard.services, status: t.dashboard.status.busy, color: "bg-yellow-500" },
+                                        { name: t.dashboard.kidsNextGen, role: t.dashboard.familyMinistry, status: t.dashboard.status.online, color: "bg-green-500" },
+                                        { name: t.dashboard.mediaDirector, role: t.dashboard.creative, status: t.dashboard.status.online, color: "bg-pink-500" },
                                     ].map((director) => (
                                         <div key={director.name} className="flex items-center justify-between">
                                             <div className="flex items-center gap-3">
@@ -235,20 +235,20 @@ export default function DashboardPage() {
                         {/* System Status Updated */}
                         <Card className="bg-muted/30 border-none shadow-none">
                             <CardHeader className="pb-2">
-                                <CardTitle className="text-sm text-muted-foreground">System Health</CardTitle>
+                                <CardTitle className="text-sm text-muted-foreground">{t.dashboard.systemHealth}</CardTitle>
                             </CardHeader>
                             <CardContent>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="flex flex-col">
-                                        <span className="text-xs text-muted-foreground">Backend</span>
+                                        <span className="text-xs text-muted-foreground">{t.dashboard.backend}</span>
                                         <span className="text-sm font-medium text-green-600 flex items-center gap-1">
-                                            <CheckCircle className="h-3 w-3" /> Operational
+                                            <CheckCircle className="h-3 w-3" /> {t.dashboard.operational}
                                         </span>
                                     </div>
                                     <div className="flex flex-col">
-                                        <span className="text-xs text-muted-foreground">Database</span>
+                                        <span className="text-xs text-muted-foreground">{t.dashboard.database}</span>
                                         <span className="text-sm font-medium text-green-600 flex items-center gap-1">
-                                            <CheckCircle className="h-3 w-3" /> Connected
+                                            <CheckCircle className="h-3 w-3" /> {t.dashboard.connected}
                                         </span>
                                     </div>
                                 </div>

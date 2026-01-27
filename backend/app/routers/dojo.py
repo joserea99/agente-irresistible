@@ -24,10 +24,16 @@ class RoleplayRequest(BaseModel):
     message: str
     history: List[Message] = []
     language: str = "es"
+    system_prompt: Optional[str] = None # For custom scenarios
 
 class EvaluateRequest(BaseModel):
     scenario_id: str
     history: List[Message]
+    language: str = "es"
+    system_prompt: Optional[str] = None
+
+class CreateScenarioRequest(BaseModel):
+    description: str
     language: str = "es"
 
 # Initialize Dojo service
@@ -45,6 +51,24 @@ async def get_scenarios(
     """
     scenarios = dojo_service.get_scenarios(language=language)
     return {"scenarios": scenarios}
+
+@router.post("/create")
+async def create_custom_scenario(
+    request: CreateScenarioRequest,
+    dojo_service: DojoService = Depends(get_dojo_service)
+):
+    """
+    Generate a custom scenario from a description
+    """
+    result = dojo_service.create_scenario_from_description(
+        description=request.description,
+        language=request.language
+    )
+    
+    if "error" in result:
+        raise HTTPException(status_code=500, detail=result["error"])
+        
+    return result
 
 @router.post("/start")
 async def start_scenario(
@@ -80,7 +104,8 @@ async def send_roleplay_message(
             scenario_id=request.scenario_id,
             user_input=request.message,
             history=history_dicts,
-            language=request.language
+            language=request.language,
+            custom_system_prompt=request.system_prompt
         )
         
         return {"message": response_text}

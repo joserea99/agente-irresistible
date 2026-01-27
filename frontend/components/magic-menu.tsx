@@ -34,7 +34,7 @@ export function MagicMenu({ source, title }: MagicMenuProps) {
     const [isLoading, setIsLoading] = useState(false);
     const [result, setResult] = useState("");
     const [activeAction, setActiveAction] = useState("");
-    const { t } = useLanguage();
+    const { t, language } = useLanguage();
 
     const handleAction = async (actionType: string, actionLabel: string) => {
         setIsLoading(true);
@@ -46,6 +46,7 @@ export function MagicMenu({ source, title }: MagicMenuProps) {
             const response = await api.post("/magic/generate", {
                 document_source: source,
                 action_type: actionType,
+                language: language // Pass current language context
             });
             setResult(response.data.result);
         } catch (error) {

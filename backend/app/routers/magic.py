@@ -11,6 +11,7 @@ rag_manager = RAGManager()
 class MagicRequest(BaseModel):
     document_source: str
     action_type: str # "guide", "plan", "social"
+    language: str = "es" # Default to Spanish per user request
 
 @router.post("/generate")
 async def generate_magic_content(request: MagicRequest):
@@ -30,11 +31,11 @@ async def generate_magic_content(request: MagicRequest):
     result = ""
     
     if request.action_type == "guide":
-        result = magic_service.generate_small_group_guide(content)
+        result = magic_service.generate_small_group_guide(content, request.language)
     elif request.action_type == "plan":
-        result = magic_service.generate_implementation_plan(content)
+        result = magic_service.generate_implementation_plan(content, request.language)
     elif request.action_type == "social":
-        result = magic_service.generate_social_media_posts(content)
+        result = magic_service.generate_social_media_posts(content, request.language)
     else:
         raise HTTPException(status_code=400, detail="Invalid action type. Must be 'guide', 'plan', or 'social'")
     

@@ -135,14 +135,14 @@ export default function DashboardPage() {
                         {/* Quick Actions */}
                         <div>
                             <h3 className="text-lg font-semibold mb-3">{t.dashboard.quickActionsTitle}</h3>
-                            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 {config.quickActions.map((action) => (
                                     <Link href={action.href} key={action.title}>
-                                        <div className={`p-4 rounded-xl border ${action.color} hover:bg-opacity-20 transition-all cursor-pointer h-full flex flex-col justify-between aspect-video sm:aspect-auto`}>
-                                            <action.icon className="h-6 w-6 mb-2" />
+                                        <div className={`p-3 sm:p-4 rounded-xl border ${action.color} hover:bg-opacity-20 transition-all cursor-pointer h-full flex flex-row sm:flex-col items-center sm:items-start gap-4 sm:gap-0 justify-start sm:justify-between min-h-[64px]`}>
+                                            <action.icon className="h-5 w-5 sm:h-6 sm:w-6 sm:mb-2" />
                                             <div>
                                                 <div className="font-bold text-sm">{action.title}</div>
-                                                <div className="text-xs opacity-70">{action.desc}</div>
+                                                <div className="text-xs opacity-70 line-clamp-1">{action.desc}</div>
                                             </div>
                                         </div>
                                     </Link>

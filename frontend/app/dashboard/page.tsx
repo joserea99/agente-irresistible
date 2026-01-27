@@ -2,7 +2,8 @@
 
 import DashboardLayout from "@/components/dashboard-layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { ArrowRight, Clock, CheckCircle, Library } from "lucide-react";
+import { ArrowRight, Clock, CheckCircle, Library, BookOpen, MessageSquare, Play, Sparkles, TrendingUp, Users } from "lucide-react";
+import { MagicMenu } from "@/components/magic-menu";
 import { motion } from "framer-motion";
 import { useLanguage } from "@/lib/language-context";
 import { Button } from "@/components/ui/button";
@@ -162,15 +163,20 @@ export default function DashboardPage() {
                                 <div className="space-y-4">
                                     {recentDocs.length > 0 ? (
                                         recentDocs.map((doc, i) => (
-                                            <div key={i} className="flex items-start gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors border border-transparent hover:border-border">
-                                                <div className="h-8 w-8 rounded bg-blue-500/10 flex items-center justify-center shrink-0">
-                                                    <Clock className="h-4 w-4 text-blue-500" />
+                                            <div key={i} className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors border border-transparent hover:border-border group justify-between">
+                                                <div className="flex items-center gap-3 flex-1 overflow-hidden">
+                                                    <div className="h-8 w-8 rounded bg-blue-500/10 flex items-center justify-center shrink-0">
+                                                        <Clock className="h-4 w-4 text-blue-500" />
+                                                    </div>
+                                                    <div className="overflow-hidden">
+                                                        <p className="text-sm font-medium truncate">{doc.title || "Untitled Asset"}</p>
+                                                        <a href={doc.source} target="_blank" className="text-xs text-muted-foreground hover:text-primary hover:underline truncate block">
+                                                            {doc.source || "No source link"}
+                                                        </a>
+                                                    </div>
                                                 </div>
-                                                <div className="overflow-hidden">
-                                                    <p className="text-sm font-medium truncate">{doc.title || "Untitled Asset"}</p>
-                                                    <a href={doc.source} target="_blank" className="text-xs text-muted-foreground hover:text-primary hover:underline truncate block">
-                                                        {doc.source || "No source link"}
-                                                    </a>
+                                                <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <MagicMenu source={doc.source} title={doc.title} />
                                                 </div>
                                             </div>
                                         ))

@@ -8,7 +8,11 @@ if os.path.exists("/app/brain_data"):
     CHROMA_PATH = "/app/brain_data/irresistible_brain_db"
 else:
     # Local development
-    CHROMA_PATH = "irresistible_brain_db"
+    # Ensure we point to the project root, not backend/
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.abspath(os.path.join(current_dir, "../../.."))
+    CHROMA_PATH = os.path.join(project_root, "irresistible_brain_db")
+    print(f"🧠 RAG DB Path: {CHROMA_PATH}")
 
 class RAGManager:
     def __init__(self):
@@ -101,3 +105,30 @@ class RAGManager:
         except Exception as e:
             print(f"Error fetching recent docs: {e}")
             return []
+
+    def get_full_document(self, source_url):
+        """Retrieves and stitches together all chunks for a given source."""
+        try:
+            results = self.collection.get(
+                where={"source": source_url},
+                include=["documents"]
+            )
+            
+            if not results["documents"]:
+                return None
+                
+            # Naive stitching: just join them. 
+            # Since we chunked strictly by order of insertion (likely), 
+            # we should technically sort by ID if IDs preserved order.
+            # Our IDs are f"{source_url}_{i}", so we can sort by that.
+            
+            # Combine docs with ids to sort
+            docs_with_ids = zip(results["ids"], results["documents"])
+            sorted_docs = sorted(docs_with_ids, key=lambda x: int(x[0].split('_')[-1]))
+            
+            full_text = "".join([doc for _, doc in sorted_docs])
+            return full_text
+            
+        except Exception as e:
+            print(f"Error retrieving full doc: {e}")
+            return None

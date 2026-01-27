@@ -61,6 +61,16 @@ export const translations = {
             source: "Source",
             score: "Score",
         },
+        magic: {
+            actionsTitle: "Magic Actions",
+            createGuide: "Create Guide",
+            createPlan: "Create Plan",
+            socialPosts: "Draft Social Posts",
+            generated: "Generated",
+            basedOn: "Based on",
+            consulting: "Consulting the magic...",
+            error: "Error generating content. Please try again.",
+        },
     },
     es: {
         common: {
@@ -121,6 +131,16 @@ export const translations = {
             noResults: "No se encontraron resultados.",
             source: "Fuente",
             score: "Puntuación",
+        },
+        magic: {
+            actionsTitle: "Acciones Mágicas",
+            createGuide: "Crear Guía",
+            createPlan: "Crear Plan",
+            socialPosts: "Borrador de Posts",
+            generated: "Generado",
+            basedOn: "Basado en",
+            consulting: "Consultando a la magia...",
+            error: "Error generando contenido. Intente de nuevo.",
         },
     },
 };

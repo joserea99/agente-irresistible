@@ -36,7 +36,7 @@ export default function LoginPage() {
                 device_fingerprint: deviceFingerprint
             });
             login(response.data.access_token, response.data.user);
-            Cookies.set('access_token', response.data.access_token, { expires: 1 }); // Expires in 1 day
+            Cookies.set('access_token', response.data.access_token, { expires: 1, path: '/' }); // Explicit path to avoid duplicates
             router.push("/dashboard");
         } catch (err: any) {
             console.error("Login Error Full:", err);

@@ -1,152 +1,173 @@
-
 "use client";
 
-import { useEffect, useState } from "react";
-import { useAuthStore, api } from "@/lib/store";
-import { useRouter } from "next/navigation";
+import DashboardLayout from "@/components/dashboard-layout";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { useAuthStore, api } from "@/lib/store";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { Trash2, UserCog, ShieldAlert } from "lucide-react";
+import { ROLE_CONFIGS } from "@/lib/dashboard-config";
 
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
-
-interface User {
+interface UserData {
     username: string;
     full_name: string;
     role: string;
     subscription_status: string;
-    trial_start_date: string;
+    created_at: string;
 }
 
 export default function AdminPage() {
     const { user } = useAuthStore();
     const router = useRouter();
-    const [users, setUsers] = useState<User[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [users, setUsers] = useState<UserData[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
 
+    // Protected Route Check
     useEffect(() => {
-        // Wait for hydration
-        if (!user) return;
-
-        // Basic protection (client-side)
-        if (user.role !== "admin") {
-            router.push("/dashboard");
-            return;
+        if (user && user.role !== 'admin') {
+            router.push('/dashboard');
         }
-
-        fetchUsers();
-    }, [user]);
+    }, [user, router]);
 
     const fetchUsers = async () => {
         try {
-            const res = await api.get("/auth/users");
-            setUsers(res.data);
-        } catch (err) {
-            console.error("Failed to fetch users", err);
+            const response = await api.get("/auth/users");
+            setUsers(response.data);
+        } catch (error) {
+            console.error("Failed to fetch users", error);
         } finally {
-            setLoading(false);
+            setIsLoading(false);
         }
     };
 
-    const updateRole = async (username: string, newRole: string) => {
-        // Prevent modifying own role to avoid locking oneself out
-        if (username === user?.username) {
-            alert("You cannot change your own role.");
-            return;
+    useEffect(() => {
+        if (user?.role === 'admin') {
+            fetchUsers();
         }
+    }, [user]);
 
+    const handleRoleChange = async (username: string, newRole: string) => {
         try {
             await api.put(`/auth/users/${username}/role`, { role: newRole });
             // Optimistic update
             setUsers(users.map(u => u.username === username ? { ...u, role: newRole } : u));
-        } catch (err) {
+        } catch (error) {
+            console.error("Failed to update role", error);
             alert("Failed to update role");
-            fetchUsers(); // Revert on failure
         }
     };
 
-    const deleteUser = async (username: string) => {
-        if (!confirm(`Are you sure you want to delete ${username}?`)) return;
+    const handleDeleteUser = async (username: string) => {
+        if (!confirm(`Are you sure you want to delete ${username}? This action cannot be undone.`)) return;
+
         try {
             await api.delete(`/auth/users/${username}`);
-            setUsers(users.filter((u) => u.username !== username));
-        } catch (err) {
+            setUsers(users.filter(u => u.username !== username));
+        } catch (error) {
+            console.error("Failed to delete user", error);
             alert("Failed to delete user");
         }
     };
 
-    if (loading) return <div className="p-8 text-white">Loading users...</div>;
+    if (user?.role !== 'admin') return <div className="p-8 text-center">Unauthorized</div>;
+
+    // Get all available roles from our config + admin/member
+    const availableRoles = Array.from(new Set([
+        "admin",
+        "member",
+        ...Object.keys(ROLE_CONFIGS)
+    ])).filter(r => r !== 'default'); // Remove internal keys if any
 
     return (
-        <div className="min-h-screen bg-slate-950 p-8 text-white">
-            <div className="max-w-4xl mx-auto">
-                <div className="flex justify-between items-center mb-8">
-                    <h1 className="text-3xl font-bold">Admin Panel</h1>
-                    <Button onClick={() => router.push("/dashboard")} variant="outline">
-                        Back to Dashboard
-                    </Button>
+        <DashboardLayout>
+            <div className="space-y-8">
+                <div className="flex flex-col gap-2">
+                    <h2 className="text-3xl font-bold font-heading tracking-tight">Admin Console</h2>
+                    <p className="text-muted-foreground">Manage users, roles, and system access.</p>
                 </div>
 
-                <div className="bg-slate-900 rounded-lg p-6 shadow-xl border border-slate-800">
-                    <h2 className="text-xl font-semibold mb-4">User Management</h2>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left">
-                            <thead>
-                                <tr className="border-b border-slate-700 text-slate-400">
-                                    <th className="p-3">Username</th>
-                                    <th className="p-3">Full Name</th>
-                                    <th className="p-3">Role</th>
-                                    <th className="p-3">Status</th>
-                                    <th className="p-3">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {users.map((u) => (
-                                    <tr key={u.username} className="border-b border-slate-800 hover:bg-slate-800/50">
-                                        <td className="p-3">{u.username}</td>
-                                        <td className="p-3">{u.full_name}</td>
-                                        <td className="p-3">
-                                            <Select
-                                                disabled={u.username === user?.username}
-                                                value={u.role}
-                                                onValueChange={(val) => updateRole(u.username, val)}
-                                            >
-                                                <SelectTrigger className="w-[110px] bg-slate-800 border-slate-700 text-slate-200">
-                                                    <SelectValue placeholder="Role" />
-                                                </SelectTrigger>
-                                                <SelectContent className="bg-slate-800 border-slate-700 text-slate-200">
-                                                    <SelectItem value="admin">Admin</SelectItem>
-                                                    <SelectItem value="member">Member</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        </td>
-                                        <td className="p-3">
-                                            <span className={`text-xs ${u.subscription_status === 'active' ? 'text-green-400' : 'text-yellow-400'}`}>
-                                                {u.subscription_status}
-                                            </span>
-                                        </td>
-                                        <td className="p-3">
-                                            {u.username !== user?.username && (
-                                                <Button
-                                                    variant="destructive"
-                                                    size="sm"
-                                                    onClick={() => deleteUser(u.username)}
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <UserCog className="h-5 w-5" />
+                            User Management
+                        </CardTitle>
+                        <CardDescription>Assign roles to grant access to specific Dashboards.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="rounded-md border">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>User</TableHead>
+                                        <TableHead>Role (Dashboard Access)</TableHead>
+                                        <TableHead>Status</TableHead>
+                                        <TableHead className="text-right">Actions</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {users.map((u) => (
+                                        <TableRow key={u.username}>
+                                            <TableCell>
+                                                <div className="flex flex-col">
+                                                    <span className="font-medium">{u.full_name}</span>
+                                                    <span className="text-xs text-muted-foreground">{u.username}</span>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell>
+                                                <Select
+                                                    value={u.role}
+                                                    onValueChange={(val) => handleRoleChange(u.username, val)}
+                                                    disabled={u.username === user.username} // Prevent changing own role effectively to lock out
                                                 >
-                                                    Delete
-                                                </Button>
-                                            )}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+                                                    <SelectTrigger className="w-[180px] h-8 text-xs">
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {availableRoles.map(role => (
+                                                            <SelectItem key={role} value={role}>
+                                                                {role.replace('_', ' ').toUpperCase()}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </TableCell>
+                                            <TableCell>
+                                                <Badge variant={u.subscription_status === 'active' ? 'default' : 'secondary'}>
+                                                    {u.subscription_status}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                {u.username !== user.username && (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-8 w-8 text-destructive hover:text-destructive/90"
+                                                        onClick={() => handleDeleteUser(u.username)}
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                )}
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                    {users.length === 0 && !isLoading && (
+                                        <TableRow>
+                                            <TableCell colSpan={4} className="text-center h-24 text-muted-foreground">
+                                                No users found.
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </CardContent>
+                </Card>
             </div>
-        </div>
+        </DashboardLayout>
     );
 }

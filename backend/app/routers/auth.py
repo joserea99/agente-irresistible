@@ -88,8 +88,24 @@ async def bootstrap_admin(username: str, secret: str):
 async def change_role(username: str, role_data: dict, admin: dict = Depends(verify_admin_role)):
     from ..services.auth_service import update_user_role
     new_role = role_data.get("role")
-    if new_role not in ["admin", "member"]:
-       raise HTTPException(status_code=400, detail="Invalid role")
+    # Expanded roles for Irresistible Church Agent
+    valid_roles = [
+        "admin", 
+        "member", 
+        "pastor_principal", 
+        "kids_director", 
+        "media_director", 
+        "service_director", 
+        "editorial_director",
+        "guest_services_director",
+        "students_director",
+        "adults_director",
+        "operations_director",
+        "philosophy_director",
+        "be_rich_director"
+    ]
+    if new_role not in valid_roles:
+       raise HTTPException(status_code=400, detail=f"Invalid role. Must be one of: {', '.join(valid_roles)}")
     update_user_role(username, new_role)
     return {"message": "Role updated"}
 

@@ -2,19 +2,33 @@
 
 import DashboardLayout from "@/components/dashboard-layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { Activity, Brain, Library, ArrowRight, Zap, MessageSquare, Download, Clock, CheckCircle } from "lucide-react";
+import { ArrowRight, Clock, CheckCircle, Library } from "lucide-react";
 import { motion } from "framer-motion";
 import { useLanguage } from "@/lib/language-context";
 import { Button } from "@/components/ui/button";
 import { useAuthStore, api } from "@/lib/store";
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { getDashboardConfig, DashboardConfig } from "@/lib/dashboard-config";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"; // For Role Switcher
 
 export default function DashboardPage() {
     const { t } = useLanguage();
     const { user } = useAuthStore();
     const [knowledgeCount, setKnowledgeCount] = useState<string>("Loading...");
     const [recentDocs, setRecentDocs] = useState<any[]>([]);
+
+    // Role Switcher State (for testing)
+    const [previewRole, setPreviewRole] = useState<string>(user?.role || "member");
+
+    // Get config based on previewRole directly
+    const config = getDashboardConfig(previewRole);
+
+    useEffect(() => {
+        if (user?.role) {
+            setPreviewRole(user.role);
+        }
+    }, [user?.role]);
 
     useEffect(() => {
         const fetchStats = async () => {
@@ -37,42 +51,13 @@ export default function DashboardPage() {
         fetchStats();
     }, []);
 
-    // Greeting logic
-    const hour = new Date().getHours();
-    let greeting = "Welcome back";
-    if (hour < 12) greeting = "Good morning";
-    else if (hour < 18) greeting = "Good afternoon";
-    else greeting = "Good evening";
-
-    const stats = [
-        { label: t.dashboard.activeSession, value: "Active", icon: Brain, color: "text-purple-500", desc: "System online" },
-        { label: t.dashboard.knowledgeBase, value: knowledgeCount, icon: Library, color: "text-blue-500", desc: "Indexed assets" },
-        { label: "AI Latency", value: "98ms", icon: Zap, color: "text-yellow-500", desc: "Optimal performance" },
-    ];
-
-    const quickActions = [
-        {
-            title: "Start Session",
-            desc: "Consult with a Director",
-            icon: MessageSquare,
-            href: "/chat",
-            color: "bg-primary/10 text-primary border-primary/20"
-        },
-        {
-            title: "Ingest Data",
-            desc: "Add new knowledge",
-            icon: Download,
-            href: "/knowledge",
-            color: "bg-blue-500/10 text-blue-500 border-blue-500/20"
-        },
-        {
-            title: "Verify Device",
-            desc: "Security check",
-            icon: CheckCircle,
-            href: "/verify-device",
-            color: "bg-green-500/10 text-green-500 border-green-500/20"
+    // Merge dynamic data into config stats
+    const stats = config.stats.map(stat => {
+        if (stat.label === "Knowledge Base" || stat.label === "Brand Assets") {
+            return { ...stat, value: knowledgeCount };
         }
-    ];
+        return stat;
+    });
 
     return (
         <DashboardLayout>
@@ -81,18 +66,36 @@ export default function DashboardPage() {
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div>
                         <div className="flex items-center gap-3">
-                            <h2 className="text-3xl font-bold font-heading tracking-tight">{greeting}, {user?.full_name || "Leader"}</h2>
+                            <h2 className="text-3xl font-bold font-heading tracking-tight">
+                                {config.greeting(user?.full_name || "Leader")}
+                            </h2>
                             {user?.role && (
-                                <span className={`px-2 py-0.5 rounded text-xs font-mono uppercase border ${user.role === 'admin' ? 'bg-purple-500/20 text-purple-400 border-purple-500/30' : 'bg-slate-500/20 text-slate-400 border-slate-500/30'}`}>
+                                <span className={`px-2 py-0.5 rounded text-xs font-mono uppercase border bg-slate-500/20 text-slate-400 border-slate-500/30`}>
                                     {user.role}
                                 </span>
                             )}
                         </div>
                         <p className="text-muted-foreground">{t.dashboard.readyToProcess || "Your strategic intelligence hub is ready."}</p>
                     </div>
-                    <div className="flex gap-2">
+
+                    <div className="flex gap-2 items-center">
+                        {/* Role Switcher for Demo */}
+                        <div className="hidden md:block w-[180px]">
+                            <Select value={previewRole} onValueChange={setPreviewRole}>
+                                <SelectTrigger className="h-9 text-xs">
+                                    <SelectValue placeholder="Preview Role" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="pastor_principal">Pastor Principal</SelectItem>
+                                    <SelectItem value="kids_director">Kids Director</SelectItem>
+                                    <SelectItem value="media_director">Media Director</SelectItem>
+                                    <SelectItem value="member">Member (Default)</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+
                         <Link href="/chat">
-                            <Button>New Strategy Session <ArrowRight className="ml-2 h-4 w-4" /></Button>
+                            <Button>New Session <ArrowRight className="ml-2 h-4 w-4" /></Button>
                         </Link>
                     </div>
                 </div>
@@ -132,7 +135,7 @@ export default function DashboardPage() {
                         <div>
                             <h3 className="text-lg font-semibold mb-3">Quick Actions</h3>
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                {quickActions.map((action) => (
+                                {config.quickActions.map((action) => (
                                     <Link href={action.href} key={action.title}>
                                         <div className={`p-4 rounded-xl border ${action.color} hover:bg-opacity-20 transition-all cursor-pointer h-full flex flex-col justify-between`}>
                                             <action.icon className="h-6 w-6 mb-2" />
@@ -201,9 +204,9 @@ export default function DashboardPage() {
                                 <div className="space-y-4">
                                     {[
                                         { name: "Pastor Principal", role: "Vision & Strategy", status: "Online", color: "bg-green-500" },
-                                        { name: "Executive Director", role: "Implementation", status: "Online", color: "bg-green-500" },
                                         { name: "Service Programming", role: "Services", status: "Busy", color: "bg-yellow-500" },
                                         { name: "Kids & NextGen", role: "Family Ministry", status: "Online", color: "bg-green-500" },
+                                        { name: "Media Director", role: "Creative", status: "Online", color: "bg-pink-500" },
                                     ].map((director) => (
                                         <div key={director.name} className="flex items-center justify-between">
                                             <div className="flex items-center gap-3">
@@ -240,12 +243,6 @@ export default function DashboardPage() {
                                         <span className="text-xs text-muted-foreground">Database</span>
                                         <span className="text-sm font-medium text-green-600 flex items-center gap-1">
                                             <CheckCircle className="h-3 w-3" /> Connected
-                                        </span>
-                                    </div>
-                                    <div className="flex flex-col">
-                                        <span className="text-xs text-muted-foreground">Search</span>
-                                        <span className="text-sm font-medium text-green-600 flex items-center gap-1">
-                                            <CheckCircle className="h-3 w-3" /> Ready
                                         </span>
                                     </div>
                                 </div>

@@ -138,7 +138,7 @@ export default function DashboardPage() {
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 {config.quickActions.map((action) => (
                                     <Link href={action.href} key={action.title}>
-                                        <div className={`p-3 sm:p-4 rounded-xl border ${action.color} hover:bg-opacity-20 transition-all cursor-pointer h-full flex flex-row sm:flex-col items-center sm:items-start gap-4 sm:gap-0 justify-start sm:justify-between min-h-[64px]`}>
+                                        <div className={`p-3 sm:p-4 rounded-xl border ${action.color} hover:bg-opacity-20 transition-all cursor-pointer h-full flex flex-row sm:flex-col items-center sm:items-start gap-4 sm:gap-0 justify-start sm:justify-between min-h-[64px]`}> {/* Adapted for mobile list view */}
                                             <action.icon className="h-5 w-5 sm:h-6 sm:w-6 sm:mb-2" />
                                             <div>
                                                 <div className="font-bold text-sm">{action.title}</div>

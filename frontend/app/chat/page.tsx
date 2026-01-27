@@ -119,7 +119,7 @@ export default function ChatPage() {
             <div className="flex h-[calc(100vh-8rem)] flex-col gap-4">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div className="flex flex-col gap-2">
-                        <h2 className="text-3xl font-bold font-heading">🏛️ El Gabinete</h2>
+                        <h2 className="text-3xl font-bold font-heading">🏛️ Equipo de Liderazgo</h2>
                         <p className="text-muted-foreground">Consultoría estratégica con directores especializados</p>
                     </div>
 

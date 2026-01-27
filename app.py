@@ -262,14 +262,14 @@ def dashboard():
         # Mode Selection with visual cards
         mode = st.radio(
             "🎯 Modo de Operación",
-            ["🏛️ El Gabinete (Consultor)", "🥋 El Dojo (Roleplay)", "📊 Dashboard"],
+            ["🏛️ Equipo de Liderazgo (Consultor)", "🥋 El Dojo (Roleplay)", "📊 Dashboard"],
             label_visibility="visible"
         )
         
         selected_persona = None
         selected_scenario = None
         
-        if "Gabinete" in mode:
+        if "Equipo de Liderazgo" in mode:
             st.markdown("### 🏛️ Directores Disponibles")
             selected_persona = st.selectbox(
                 "Selecciona Director:",
@@ -684,7 +684,7 @@ def show_dashboard():
         st.markdown("""
         <div class="feature-card">
             <div class="feature-icon">🏛️</div>
-            <h3>El Gabinete</h3>
+            <h3>Equipo de Liderazgo</h3>
             <p>Consulta con 6 directores especializados en diferentes áreas ministeriales.</p>
         </div>
         """, unsafe_allow_html=True)

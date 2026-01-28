@@ -20,7 +20,7 @@ class ChatService:
         
         if self.api_key:
             self.llm = ChatGoogleGenerativeAI(
-                model="gemini-2.0-flash-exp",
+                model="gemini-2.0-flash",
                 temperature=0.7,
                 google_api_key=self.api_key
             )

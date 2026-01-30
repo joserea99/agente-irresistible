@@ -49,6 +49,13 @@ export default function DojoPage() {
 
     // Load Scenarios
     useEffect(() => {
+        // Reset active session when language changes to avoid mixed state
+        setIsPlaying(false);
+        setSelectedScenarioId(null);
+        setActiveScenario(null);
+        setMessages([]);
+        setEvaluation(null);
+
         const fetchScenarios = async () => {
             try {
                 const res = await api.get(`/dojo/scenarios?language=${language}`);

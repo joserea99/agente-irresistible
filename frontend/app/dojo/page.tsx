@@ -268,21 +268,21 @@ export default function DojoPage() {
                                         <h4 className="flex items-center gap-2 text-sm font-bold uppercase text-blue-600 dark:text-blue-400">
                                             <MessageSquare className="h-4 w-4" /> {t.dojo.context}
                                         </h4>
-                                        <p className="text-sm">You are talking to a difficult person. Stay calm and lead.</p>
+                                        <p className="text-sm">{activeScenario?.context || t.dojo.contextDesc}</p>
                                     </div>
 
                                     <div className="space-y-2">
                                         <h4 className="flex items-center gap-2 text-sm font-bold uppercase text-amber-600 dark:text-amber-400">
                                             <Target className="h-4 w-4" /> {t.dojo.goal}
                                         </h4>
-                                        <p className="text-sm opacity-90">De-escalate the situation while maintaining church values. Do not be defensive.</p>
+                                        <p className="text-sm opacity-90">{activeScenario?.goal || t.dojo.goalDesc}</p>
                                     </div>
 
                                     <div className="space-y-2">
                                         <h4 className="flex items-center gap-2 text-sm font-bold uppercase text-rose-600 dark:text-rose-400">
                                             <AlertTriangle className="h-4 w-4" /> {t.dojo.tone}
                                         </h4>
-                                        <p className="text-sm opacity-90">Hostile, Emotional, Skeptical.</p>
+                                        <p className="text-sm opacity-90">{activeScenario?.tone || t.dojo.toneDesc}</p>
                                     </div>
                                 </CardContent>
                                 <CardFooter>

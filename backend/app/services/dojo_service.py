@@ -17,6 +17,9 @@ DOJO_SCENARIOS = {
         "en": {
             "name": "The Angry Parent",
             "description": "A parent is upset because their 5-year-old was pushed on the playground in Waumba Land.",
+            "context": "You are talking to Sarah, a protective mother whose son was pushed.",
+            "goal": "De-escalate the situation, validate her feelings, and explain safety protocols without being defensive.",
+            "tone": "Hostile, Emotional, Protective",
             "system_prompt": """
 You are 'Sarah', a protective and currently angry mother.
 Your 5-year-old son, Timmy, came out of Waumba Land crying with a scraped knee, saying a bigger kid pushed him.
@@ -34,6 +37,9 @@ LANGUAGE: ENGLISH.
         "es": {
             "name": "El Padre Enojado",
             "description": "Una mamá está molesta porque empujaron a su hijo de 5 años en Waumba Land.",
+            "context": "Estás hablando con Sarah, una madre protectora cuyo hijo fue empujado.",
+            "goal": "Desescalar la situación, validar sus sentimientos y explicar los protocolos de seguridad sin ponerte a la defensiva.",
+            "tone": "Hostil, Emocional, Protectora",
             "system_prompt": """
 Eres 'Sarah', una madre protectora y actualmente muy enojada.
 Tu hijo de 5 años, Timmy, salió de Waumba Land llorando con la rodilla raspada, diciendo que un niño grande lo empujó.
@@ -55,6 +61,9 @@ IDIOMA: ESPAÑOL (Tu respuesta debe ser exclusivamente en Español).
         "en": {
             "name": "The Burned-Out Volunteer",
             "description": "A high-capacity small group leader wants to step down mid-year due to fatigue.",
+            "context": "You are meeting with Mike, a high-capacity leader who is exhausted.",
+            "goal": "Listen with empathy, identify the root cause of burnout, and offer a realistic support plan to retain him.",
+            "tone": "Tired, Defeated, Apologetic",
             "system_prompt": """
 You are 'Mike', a Small Group leader for high school boys. You love the kids but you are exhausted. 
 Work is crazy, your marriage is tense, and preparing for Sunday feels like a burden.
@@ -72,6 +81,9 @@ LANGUAGE: ENGLISH.
         "es": {
             "name": "El Voluntario Agotado",
             "description": "Un líder de grupo pequeño de alto impacto quiere renunciar a mitad de año por cansancio.",
+            "context": "Te reúnes con Mike, un líder de alto impacto que está exhausto.",
+            "goal": "Escuchar con empatía, identificar la raíz del agotamiento y ofrecer un plan de apoyo realista para retenerlo.",
+            "tone": "Cansado, Derrotado, Apenado",
             "system_prompt": """
 Eres 'Mike', un líder de Grupo Pequeño de chicos de secundaria. Amas a los chicos pero estás agotado.
 El trabajo es una locura, tu matrimonio está tenso y prepararte para el domingo se siente como una carga.
@@ -93,6 +105,9 @@ IDIOMA: ESPAÑOL (Tu respuesta debe ser exclusivamente en Español).
         "en": {
             "name": "The Skeptic Guest",
             "description": "A first-time guest feels the sermon was too 'watered down' and lacked depth.",
+            "context": "You are talking to David, a visitor with a traditional background who is critical of the service.",
+            "goal": "Explain the 'Why' behind the church model without being defensive. Pivot the conversation to mission.",
+            "tone": "Intellectual, Critical, Skeptical",
             "system_prompt": """
 You are 'David', a visitor with a traditional church background.
 You found the service 'entertaining' but felt the sermon was 'lite' and didn't use enough scripture.
@@ -110,6 +125,9 @@ LANGUAGE: ENGLISH.
         "es": {
             "name": "El Invitado Escéptico",
             "description": "Un invitado por primera vez siente que el sermón fue muy 'light' y le faltó profundidad.",
+            "context": "Estás hablando con David, un visitante con trasfondo tradicional que critica el servicio.",
+            "goal": "Explicar el 'Por qué' del modelo de la iglesia sin ponerte a la defensiva. Redirigir la conversación hacia la misión.",
+            "tone": "Intelectual, Crítico, Escéptico",
             "system_prompt": """
 Eres 'David', un visitante con un trasfondo de iglesia tradicional.
 Encontraste el servicio 'entretenido' pero sentiste que el sermón fue muy ligero y no usó suficiente escritura.
@@ -201,7 +219,10 @@ class DojoService:
         return {
             "scenario_id": scenario_id,
             "name": lang_data["name"],
-            "opening_line": lang_data["opening_line"]
+            "opening_line": lang_data["opening_line"],
+            "context": lang_data.get("context", ""),
+            "goal": lang_data.get("goal", ""),
+            "tone": lang_data.get("tone", "")
         }
     
     def generate_roleplay_response(
@@ -329,10 +350,14 @@ TRANSCRIPT:
             "name": "Short catchy title",
             "description": "2 sentence context",
             "system_prompt": "Full system prompt for the AI to play the role. Include GOAL, TONE, and Context.",
-            "opening_line": "The first thing the character says to the user."
+            "opening_line": "The first thing the character says to the user.",
+            "context": "Brief explanation of who the user is talking to and why.",
+            "goal": "What the user needs to achieve in the conversation.",
+            "tone": "3 adj words describing the persona's vibe."
         }}
         
         The 'system_prompt' should be detailed and instruct the AI to stay in character.
+        If Target Language is 'es', ensure ALL fields (name, description, etc.) are in Spanish.
         """
         
         messages = [HumanMessage(content=prompt)]

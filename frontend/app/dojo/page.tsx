@@ -9,9 +9,12 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { useLanguage } from "@/lib/language-context";
 import { api } from "@/lib/store";
-import { Loader2, Send, User, Bot, Play, Trophy, AlertTriangle, Target, MessageSquare, Sparkles } from "lucide-react";
+import { Loader2, Send, User, Bot, Play, Trophy, AlertTriangle, Target, MessageSquare, Sparkles, Volume2, StopCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import ReactMarkdown from 'react-markdown';
+import { MicButton } from "@/components/ui/mic-button";
+import { useSpeechToText } from "@/hooks/use-speech-to-text";
+import { useTextToSpeech } from "@/hooks/use-text-to-speech";
 
 interface Scenario {
     id: string;
@@ -47,6 +50,23 @@ export default function DojoPage() {
 
     const scrollRef = useRef<HTMLDivElement>(null);
 
+    // Voice Hooks
+    const { isListening, startListening, stopListening, hasSupport: hasMicSupport } = useSpeechToText({
+        onResult: (text) => setInput((prev) => prev + (prev && !prev.endsWith(' ') ? " " : "") + text),
+        language: language === 'es' ? 'es-ES' : 'en-US'
+    });
+    const { speak, stop: stopSpeaking, isSpeaking } = useTextToSpeech();
+
+    // Auto-speak assistant messages
+    useEffect(() => {
+        if (messages.length > 0 && isPlaying) {
+            const lastMsg = messages[messages.length - 1];
+            if (lastMsg.role === 'assistant') {
+                speak(lastMsg.content, language === 'es' ? 'es-ES' : 'en-US');
+            }
+        }
+    }, [messages, isPlaying, language, speak]);
+
     // Load Scenarios
     useEffect(() => {
         // Reset active session when language changes to avoid mixed state
@@ -55,6 +75,7 @@ export default function DojoPage() {
         setActiveScenario(null);
         setMessages([]);
         setEvaluation(null);
+        stopSpeaking(); // Stop any pending audio
 
         const fetchScenarios = async () => {
             try {
@@ -65,7 +86,7 @@ export default function DojoPage() {
             }
         };
         fetchScenarios();
-    }, [language]);
+    }, [language, stopSpeaking]);
 
     // Auto-scroll
     useEffect(() => {
@@ -355,6 +376,17 @@ export default function DojoPage() {
                                                         }`}>
                                                         {msg.content}
                                                     </div>
+                                                    {msg.role === 'assistant' && (
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="h-8 w-8 rounded-full shrink-0"
+                                                            onClick={() => isSpeaking ? stopSpeaking() : speak(msg.content, language === 'es' ? 'es-ES' : 'en-US')}
+                                                            title="Reproducir audio"
+                                                        >
+                                                            {isSpeaking ? <StopCircle className="h-4 w-4" /> : <Volume2 className="h-4 w-4 opacity-50 hover:opacity-100" />}
+                                                        </Button>
+                                                    )}
                                                 </div>
                                             </div>
                                         ))}
@@ -376,10 +408,17 @@ export default function DojoPage() {
                                             <Input
                                                 value={input}
                                                 onChange={e => setInput(e.target.value)}
-                                                placeholder={t.dojo.typeResponse}
+                                                placeholder={t.dojo.typeResponse + (isListening ? " (Escuchando...)" : "")}
                                                 disabled={isLoading}
                                                 className="flex-1"
                                                 autoFocus
+                                            />
+                                            {/* Mic Button */}
+                                            <MicButton
+                                                isListening={isListening}
+                                                onStart={startListening}
+                                                onStop={stopListening}
+                                                disabled={isLoading || !hasMicSupport}
                                             />
                                             <Button type="submit" disabled={isLoading || !input.trim()}>
                                                 <Send className="h-4 w-4" />

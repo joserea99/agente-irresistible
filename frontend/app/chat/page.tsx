@@ -6,11 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Send, Bot, User, Loader2, FileDown, Users, Clock } from "lucide-react";
+import { Send, Bot, User, Loader2, FileDown, Users, Clock, Volume2, StopCircle } from "lucide-react";
 import { useAuthStore, api } from "@/lib/store";
 import { useLanguage } from "@/lib/language-context";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChatHistorySidebar } from "@/components/chat-history";
+import { MicButton } from "@/components/ui/mic-button";
+import { useSpeechToText } from "@/hooks/use-speech-to-text";
+import { useTextToSpeech } from "@/hooks/use-text-to-speech";
 
 interface Director {
     id: string;
@@ -29,7 +32,15 @@ export default function ChatPage() {
 
     const scrollRef = useRef<HTMLDivElement>(null);
     const { user } = useAuthStore();
-    const { t } = useLanguage();
+    const { t, language } = useLanguage();
+
+    // Voice Hooks
+    const { isListening, startListening, stopListening, hasSupport: hasMicSupport } = useSpeechToText({
+        onResult: (text) => setInput((prev) => prev + (prev && !prev.endsWith(' ') ? " " : "") + text),
+        language: language === 'es' ? 'es-ES' : 'en-US'
+    });
+
+    const { speak, stop: stopSpeaking, isSpeaking } = useTextToSpeech();
 
     // Fetch directors on mount
     useEffect(() => {
@@ -234,6 +245,20 @@ export default function ChatPage() {
                                                 <div className={`rounded-lg px-4 py-3 text-sm ${m.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
                                                     <span className="whitespace-pre-wrap">{m.content}</span>
                                                 </div>
+                                                {/* TTS Button for Assistant */}
+                                                {m.role === "assistant" && (
+                                                    <div className="flex gap-2">
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="h-6 w-6 p-0 rounded-full hover:bg-muted-foreground/10"
+                                                            onClick={() => isSpeaking ? stopSpeaking() : speak(m.content, language === 'es' ? 'es-ES' : 'en-US')}
+                                                            title="Leer en voz alta"
+                                                        >
+                                                            {isSpeaking ? <StopCircle className="h-3 w-3" /> : <Volume2 className="h-3 w-3 opacity-50 hover:opacity-100" />}
+                                                        </Button>
+                                                    </div>
+                                                )}
                                             </div>
                                         </motion.div>
                                     ))}
@@ -259,10 +284,17 @@ export default function ChatPage() {
                                 <Input
                                     value={input}
                                     onChange={(e) => setInput(e.target.value)}
-                                    placeholder="Escribe tu pregunta o desafío..."
+                                    placeholder="Escribe tu pregunta o desafío... (o usa el micrófono)"
                                     className="flex-1 bg-background"
                                     disabled={isLoading}
                                     autoFocus
+                                />
+                                {/* Mic Button */}
+                                <MicButton
+                                    isListening={isListening}
+                                    onStart={startListening}
+                                    onStop={stopListening}
+                                    disabled={isLoading || !hasMicSupport}
                                 />
                                 <Button type="submit" size="icon" disabled={isLoading || !input.trim()}>
                                     <Send className="h-4 w-4" />

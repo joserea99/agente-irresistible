@@ -26,8 +26,8 @@ export function useSpeechToText({ onResult, language = "es-ES" }: UseSpeechToTex
 
         if (SpeechRecognition) {
             const recognition = new SpeechRecognition();
-            recognition.continuous = false; // Stop after one sentence for "walkie-talkie" feel
-            recognition.interimResults = true; // Show results while talking
+            recognition.continuous = true; // Keep listening until stopped manually
+            recognition.interimResults = true;
             recognition.lang = language;
 
             recognition.onstart = () => {
@@ -39,15 +39,21 @@ export function useSpeechToText({ onResult, language = "es-ES" }: UseSpeechToTex
             };
 
             recognition.onresult = (event: any) => {
-                let currentTranscript = "";
-                for (let i = event.resultIndex; i < event.results.length; i++) {
-                    currentTranscript += event.results[i][0].transcript;
-                }
-                setTranscript(currentTranscript);
+                let interimTranscript = "";
 
-                if (onResult && event.results[0].isFinal) {
-                    onResult(currentTranscript);
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    const result = event.results[i];
+                    const transcriptText = result[0].transcript;
+
+                    if (result.isFinal) {
+                        if (onResult) {
+                            onResult(transcriptText);
+                        }
+                    } else {
+                        interimTranscript += transcriptText;
+                    }
                 }
+                setTranscript(interimTranscript);
             };
 
             recognition.onerror = (event: any) => {

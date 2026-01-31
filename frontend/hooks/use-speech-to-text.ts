@@ -19,6 +19,7 @@ export function useSpeechToText({ onResult, language = "es-ES" }: UseSpeechToTex
     const [isListening, setIsListening] = useState(false);
     const [transcript, setTranscript] = useState("");
     const recognitionRef = useRef<any>(null);
+    const isIntentionallyListening = useRef(false); // Track if user wants it on
 
     useEffect(() => {
         // Check if browser supports speech recognition
@@ -26,7 +27,7 @@ export function useSpeechToText({ onResult, language = "es-ES" }: UseSpeechToTex
 
         if (SpeechRecognition) {
             const recognition = new SpeechRecognition();
-            recognition.continuous = true; // Keep listening until stopped manually
+            recognition.continuous = true;
             recognition.interimResults = true;
             recognition.lang = language;
 
@@ -35,7 +36,19 @@ export function useSpeechToText({ onResult, language = "es-ES" }: UseSpeechToTex
             };
 
             recognition.onend = () => {
-                setIsListening(false);
+                // If the user didn't stop it, restart it (browser silence timeout)
+                if (isIntentionallyListening.current) {
+                    try {
+                        recognition.start();
+                        console.log("🔄 Auto-restarting speech recognition...");
+                    } catch (e) {
+                        console.error("Failed to restart:", e);
+                        setIsListening(false);
+                        isIntentionallyListening.current = false;
+                    }
+                } else {
+                    setIsListening(false);
+                }
             };
 
             recognition.onresult = (event: any) => {
@@ -58,7 +71,11 @@ export function useSpeechToText({ onResult, language = "es-ES" }: UseSpeechToTex
 
             recognition.onerror = (event: any) => {
                 console.error("Speech recognition error", event.error);
-                setIsListening(false);
+                // Don't auto-restart on fatal errors to avoid loops, unless it's just 'no-speech'
+                if (event.error !== 'no-speech') {
+                    setIsListening(false);
+                    isIntentionallyListening.current = false;
+                }
             };
 
             recognitionRef.current = recognition;
@@ -73,20 +90,24 @@ export function useSpeechToText({ onResult, language = "es-ES" }: UseSpeechToTex
 
     const startListening = useCallback(() => {
         if (recognitionRef.current && !isListening) {
+            isIntentionallyListening.current = true;
             setTranscript("");
             try {
                 recognitionRef.current.start();
             } catch (e) {
                 console.error("Start error", e);
+                isIntentionallyListening.current = false;
             }
         }
     }, [isListening]);
 
     const stopListening = useCallback(() => {
-        if (recognitionRef.current && isListening) {
+        isIntentionallyListening.current = false; // Explicit stop
+        if (recognitionRef.current) {
             recognitionRef.current.stop();
         }
-    }, [isListening]);
+        setIsListening(false);
+    }, []);
 
     return {
         isListening,

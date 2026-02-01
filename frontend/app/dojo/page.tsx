@@ -57,16 +57,28 @@ export default function DojoPage() {
     });
     const { speak, stop: stopSpeaking, isSpeaking } = useTextToSpeech();
 
+    const lastSpokenIndex = useRef<number>(-1);
+
     // Auto-speak assistant messages
     useEffect(() => {
         if (messages.length > 0 && isPlaying) {
-            const lastMsg = messages[messages.length - 1];
-            if (lastMsg.role === 'assistant') {
+            const lastIndex = messages.length - 1;
+            const lastMsg = messages[lastIndex];
+
+            // Only speak if we haven't spoken this message yet
+            if (lastMsg.role === 'assistant' && lastIndex > lastSpokenIndex.current) {
+                lastSpokenIndex.current = lastIndex; // Mark as spoken
+
                 stopListening(); // Stop mic before speaking
                 speak(
                     lastMsg.content,
                     language === 'es' ? 'es-ES' : 'en-US',
-                    () => startListening() // Callback: Only start listening when speech ends
+                    () => {
+                        // Add a small delay before listening to avoid echo/self-recording
+                        setTimeout(() => {
+                            startListening();
+                        }, 500);
+                    }
                 );
             }
         }
@@ -81,6 +93,7 @@ export default function DojoPage() {
         setActiveScenario(null);
         setMessages([]);
         setEvaluation(null);
+        lastSpokenIndex.current = -1; // Reset speech tracker
         stopSpeaking(); // Stop any pending audio
         stopListening(); // Ensure mic is off
 
@@ -107,6 +120,7 @@ export default function DojoPage() {
         setSelectedScenarioId(scenarioId);
         setMessages([]);
         setEvaluation(null);
+        lastSpokenIndex.current = -1; // Reset tracker
 
         try {
             const res = await api.post("/dojo/start", {

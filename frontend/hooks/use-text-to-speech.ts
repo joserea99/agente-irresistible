@@ -28,7 +28,7 @@ export function useTextToSpeech() {
         return () => clearInterval(interval);
     }, []);
 
-    const speak = useCallback((text: string, language: string = "es-ES") => {
+    const speak = useCallback((text: string, language: string = "es-ES", onEnd?: () => void) => {
         if (!text) return;
 
         // Stop invalid utterance
@@ -53,7 +53,10 @@ export function useTextToSpeech() {
             utterance.voice = voice;
         }
 
-        utterance.onend = () => setIsSpeaking(false);
+        utterance.onend = () => {
+            setIsSpeaking(false);
+            if (onEnd) onEnd();
+        };
         utterance.onerror = () => setIsSpeaking(false);
 
         window.speechSynthesis.speak(utterance);

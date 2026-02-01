@@ -62,22 +62,16 @@ export default function DojoPage() {
         if (messages.length > 0 && isPlaying) {
             const lastMsg = messages[messages.length - 1];
             if (lastMsg.role === 'assistant') {
-                stopListening(); // Stop mic before speaking to avoid feedback
-                speak(lastMsg.content, language === 'es' ? 'es-ES' : 'en-US');
+                stopListening(); // Stop mic before speaking
+                speak(
+                    lastMsg.content,
+                    language === 'es' ? 'es-ES' : 'en-US',
+                    () => startListening() // Callback: Only start listening when speech ends
+                );
             }
         }
-    }, [messages, isPlaying, language, speak, stopListening]);
-
-    // Auto-restart mic after agent finishes speaking (Walkie-Talkie flow)
-    useEffect(() => {
-        if (!isSpeaking && isPlaying && messages.length > 0) {
-            // Only restart if the last message was from assistant (it's our turn now)
-            const lastMsg = messages[messages.length - 1];
-            if (lastMsg.role === 'assistant') {
-                startListening();
-            }
-        }
-    }, [isSpeaking, isPlaying, messages, startListening]);
+    }, [messages, isPlaying, language, speak, stopListening, startListening]);
+    // Removed the secondary useEffect that caused the race condition
 
     // Load Scenarios
     useEffect(() => {

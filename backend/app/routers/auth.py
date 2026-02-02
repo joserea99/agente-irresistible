@@ -30,6 +30,14 @@ async def verify_active_user(token: str = Depends(oauth2_scheme)):
         raise HTTPException(status_code=401, detail="Could not validate credentials")
 
 async def verify_admin_role(token: str = Depends(oauth2_scheme)):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        role = payload.get("role")
+        if role != "admin":
+            raise HTTPException(status_code=403, detail="Admin privileges required")
+        return payload
+    except jwt.JWTError:
+        raise HTTPException(status_code=401, detail="Could not validate credentials")
 
 @router.post("/login", response_model=Token)
 async def login(user_data: UserLogin):

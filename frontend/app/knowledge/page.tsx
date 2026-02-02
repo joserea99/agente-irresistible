@@ -17,10 +17,10 @@ export default function KnowledgePage() {
                     </p>
                 </div>
 
-                <Tabs defaultValue="upload" className="w-full">
+                <Tabs defaultValue="research" className="w-full">
                     <TabsList className="grid w-full grid-cols-2 lg:w-[400px]">
-                        <TabsTrigger value="upload">Subida Directa</TabsTrigger>
                         <TabsTrigger value="research">Investigación Profunda</TabsTrigger>
+                        <TabsTrigger value="upload">Subida Directa</TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="upload" className="mt-6">

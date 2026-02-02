@@ -11,7 +11,7 @@ router = APIRouter()
 # Secret key for JWT
 SECRET_KEY = os.environ.get("SECRET_KEY", "supersecretkey") # Fallback for dev, override in prod
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ACCESS_TOKEN_EXPIRE_MINUTES = 10080 # 7 Days
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 def create_access_token(data: dict):
@@ -21,15 +21,15 @@ def create_access_token(data: dict):
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-async def verify_admin_role(token: str = Depends(oauth2_scheme)):
+async def verify_active_user(token: str = Depends(oauth2_scheme)):
+    """Verifies valid token and returns payload (role agnostic)"""
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        role = payload.get("role")
-        if role != "admin":
-            raise HTTPException(status_code=403, detail="Admin privileges required")
         return payload
     except jwt.JWTError:
         raise HTTPException(status_code=401, detail="Could not validate credentials")
+
+async def verify_admin_role(token: str = Depends(oauth2_scheme)):
 
 @router.post("/login", response_model=Token)
 async def login(user_data: UserLogin):

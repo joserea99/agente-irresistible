@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 from typing import List, Optional, Dict
 from ..services.chat_service import ChatService
 from ..services.chat_history_service import ChatHistoryService
+from .auth import verify_active_user
 import os
 from io import BytesIO
 
@@ -43,13 +44,14 @@ def get_history_service():
 async def send_message(
     request: ChatRequest,
     chat_service: ChatService = Depends(get_chat_service),
-    history_service: ChatHistoryService = Depends(get_history_service)
+    history_service: ChatHistoryService = Depends(get_history_service),
+    current_user: dict = Depends(verify_active_user)
 ):
     """
     Send a message and get AI response, saving history to DB.
     """
     try:
-        user_id = "user_default" # TODO: Get from auth context
+        user_id = current_user.get("sub") # Username/Email from token
         session_id = request.session_id
         session_title = None
         
@@ -123,14 +125,18 @@ async def export_conversation(
 @router.get("/history/{user_id}")
 async def get_chat_history(
     user_id: str,
-    history_service: ChatHistoryService = Depends(get_history_service)
+    history_service: ChatHistoryService = Depends(get_history_service),
+    current_user: dict = Depends(verify_active_user)
 ):
     """Get list of past chat sessions"""
     try:
-        # For MVP we default to 'user_default' if passed 'current' or similar
-        # Real impl would use auth token user_id
-        target_user = "user_default" if user_id == "current" else user_id
+        # Use token user_id if 'current' requested
+        target_user = current_user.get("sub") if user_id == "current" else user_id
         
+        # Security check: Users can only see their own history (unless admin - TODO)
+        if target_user != current_user.get("sub") and current_user.get("role") != "admin":
+             raise HTTPException(status_code=403, detail="Access denied")
+
         sessions = history_service.get_user_sessions(target_user)
         return {"sessions": sessions}
     except Exception as e:
@@ -139,7 +145,8 @@ async def get_chat_history(
 @router.get("/session/{session_id}")
 async def get_session_details(
     session_id: str,
-    history_service: ChatHistoryService = Depends(get_history_service)
+    history_service: ChatHistoryService = Depends(get_history_service),
+    current_user: dict = Depends(verify_active_user)
 ):
     """Get full message history for a session"""
     try:

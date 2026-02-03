@@ -110,7 +110,7 @@ Use this context to provide more specific and accurate answers. If the context d
         """
         from docx import Document
         from docx.shared import Pt, RGBColor
-        from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
         from io import BytesIO
         import re
         
@@ -118,7 +118,7 @@ Use this context to provide more specific and accurate answers. If the context d
         
         # Title Style
         title_para = doc.add_heading(title, 0)
-        title_para.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+        title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
         
         doc.add_paragraph(f"Exportado desde Iglesia Irresistible OS")
         doc.add_paragraph("")

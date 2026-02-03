@@ -109,25 +109,81 @@ Use this context to provide more specific and accurate answers. If the context d
             Bytes of the .docx file
         """
         from docx import Document
+        from docx.shared import Pt, RGBColor
+        from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
         from io import BytesIO
+        import re
         
         doc = Document()
-        doc.add_heading(title, 0)
+        
+        # Title Style
+        title_para = doc.add_heading(title, 0)
+        title_para.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+        
         doc.add_paragraph(f"Exportado desde Iglesia Irresistible OS")
         doc.add_paragraph("")
         
         for msg in history:
             role = "Usuario" if msg["role"] == "user" else "Asistente"
+            
+            # Role Header
             p = doc.add_paragraph()
-            p.add_run(f"{role}: ").bold = True
-            p.add_run(msg["content"])
-            doc.add_paragraph("")
+            run = p.add_run(f"{role}:")
+            run.bold = True
+            run.font.color.rgb = RGBColor(0, 51, 102) if msg["role"] == "user" else RGBColor(0, 102, 51)
+            
+            # Parse Content Line by Line
+            content = msg["content"]
+            lines = content.split('\n')
+            
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    continue
+                
+                # HEADERS
+                if line.startswith('#'):
+                    level = min(line.count('#'), 3)
+                    clean_text = line.lstrip('#').strip()
+                    doc.add_heading(clean_text, level=level)
+                
+                # BULLET POINTS
+                elif line.startswith(('* ', '- ', '• ')):
+                    clean_text = re.sub(r'^[\*\-•]\s+', '', line)
+                    p = doc.add_paragraph(style='List Bullet')
+                    self._add_formatted_run(p, clean_text)
+                
+                # NUMBERED LISTS (Basic detection)
+                elif re.match(r'^\d+\.', line):
+                    clean_text = re.sub(r'^\d+\.\s+', '', line)
+                    p = doc.add_paragraph(style='List Number')
+                    self._add_formatted_run(p, clean_text)
+                    
+                # STANDARD PARAGRAPH
+                else:
+                    p = doc.add_paragraph()
+                    self._add_formatted_run(p, line)
+            
+            doc.add_paragraph("") # Spacer between messages
         
         # Save to bytes
         buffer = BytesIO()
         doc.save(buffer)
         buffer.seek(0)
         return buffer.getvalue()
+
+    def _add_formatted_run(self, paragraph, text):
+        """Helper to parse bold/italic within a paragraph run"""
+        # Split by bold markers (**text**)
+        parts = re.split(r'(\*\*.*?\*\*)', text)
+        for part in parts:
+            if part.startswith('**') and part.endswith('**'):
+                run = paragraph.add_run(part[2:-2])
+                run.bold = True
+            else:
+                # Handle italics inside non-bold parts if needed, or just plain text
+                # Simple update: just handle bold for now as it's the most common annoyance
+                paragraph.add_run(part)
 
     def optimize_query(self, query: str) -> str:
         """

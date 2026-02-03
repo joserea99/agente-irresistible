@@ -11,22 +11,6 @@ import os
 # Import personas
 from .personas import PERSONAS
 
-class ChatService:
-    """Service for handling AI chat conversations with Gemini"""
-    
-    def __init__(self, api_key: Optional[str] = None):
-        """Initialize the chat service with Gemini API"""
-        self.api_key = api_key or os.environ.get("GOOGLE_API_KEY")
-        
-        if self.api_key:
-            self.llm = ChatGoogleGenerativeAI(
-                model="gemini-2.0-flash",
-                temperature=0.7,
-                google_api_key=self.api_key
-            )
-        else:
-            self.llm = None
-
 # Global imports for types/standard libs
 import re
 from io import BytesIO
@@ -45,6 +29,24 @@ try:
 except ImportError:
     HAS_DOCX = False
     print("⚠️ python-docx not installed. Export will fail or fallback.")
+
+class ChatService:
+    """Service for handling AI chat conversations with Gemini"""
+    
+    def __init__(self, api_key: Optional[str] = None):
+        """Initialize the chat service with Gemini API"""
+        self.api_key = api_key or os.environ.get("GOOGLE_API_KEY")
+        
+        if self.api_key:
+            self.llm = ChatGoogleGenerativeAI(
+                model="gemini-2.0-flash",
+                temperature=0.7,
+                google_api_key=self.api_key
+            )
+        else:
+            self.llm = None
+
+
     
     def get_directors(self) -> List[Dict[str, str]]:
         """Get list of available directors"""

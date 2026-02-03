@@ -26,6 +26,25 @@ class ChatService:
             )
         else:
             self.llm = None
+
+# Global imports for types/standard libs
+import re
+from io import BytesIO
+
+# Optional docx import with compatibility
+try:
+    from docx import Document
+    from docx.shared import Pt, RGBColor
+    try:
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
+        WD_ALIGN_CENTER = WD_ALIGN_PARAGRAPH.CENTER
+    except ImportError:
+        from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
+        WD_ALIGN_CENTER = WD_PARAGRAPH_ALIGNMENT.CENTER
+    HAS_DOCX = True
+except ImportError:
+    HAS_DOCX = False
+    print("⚠️ python-docx not installed. Export will fail or fallback.")
     
     def get_directors(self) -> List[Dict[str, str]]:
         """Get list of available directors"""
@@ -108,17 +127,14 @@ Use this context to provide more specific and accurate answers. If the context d
         Returns:
             Bytes of the .docx file
         """
-        from docx import Document
-        from docx.shared import Pt, RGBColor
-        from docx.enum.text import WD_ALIGN_PARAGRAPH
-        from io import BytesIO
-        import re
-        
+        if not HAS_DOCX:
+            return b"Error: python-docx library not installed on server."
+
         doc = Document()
         
         # Title Style
         title_para = doc.add_heading(title, 0)
-        title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        title_para.alignment = WD_ALIGN_CENTER
         
         doc.add_paragraph(f"Exportado desde Iglesia Irresistible OS")
         doc.add_paragraph("")

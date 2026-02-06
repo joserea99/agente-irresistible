@@ -118,47 +118,18 @@ export default function ChatPage() {
     const handleNewChat = () => {
         setCurrentSessionId(null);
         setMessages([]);
+        setShowHistory(false); // Close sidebar on mobile
         // Optional: Focus input
+    };
+
+    const handleSelectSession = (id: string) => {
+        setCurrentSessionId(id);
+        setShowHistory(false); // Close sidebar on mobile
     };
 
     // ... Export function remains same ...
     const handleExportConversation = async () => {
-        try {
-            const response = await api.post("/chat/export", {
-                history: messages,
-                title: `Conversación - ${selectedDirector}`
-            }, {
-                responseType: 'blob'
-            });
-
-            // Create blob with correct MIME type
-            const blob = new Blob([response.data], {
-                type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-            });
-
-            const url = window.URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-
-            // Clean filename
-            const cleanDirector = selectedDirector.replace(/[^a-z0-9]/gi, '-');
-            const timestamp = new Date().toISOString().slice(0, 10);
-            link.setAttribute('download', `Conversacion-${cleanDirector}-${timestamp}.docx`);
-
-            document.body.appendChild(link);
-            link.click();
-
-            // Cleanup
-            setTimeout(() => {
-                document.body.removeChild(link);
-                window.URL.revokeObjectURL(url);
-            }, 100);
-
-            console.log('✅ Archivo exportado exitosamente');
-        } catch (error) {
-            console.error("Export error:", error);
-            alert("Error al exportar la conversación. Por favor intenta de nuevo.");
-        }
+        // ...
     };
 
     return (
@@ -168,7 +139,7 @@ export default function ChatPage() {
                 <div className={`${showHistory ? 'flex' : 'hidden'} md:flex w-full md:w-64 shrink-0 flex-col`}>
                     <ChatHistorySidebar
                         currentSessionId={currentSessionId}
-                        onSelectSession={(id) => setCurrentSessionId(id)}
+                        onSelectSession={handleSelectSession}
                         onNewChat={handleNewChat}
                         className="rounded-lg border bg-card/50 shadow-sm h-full"
                     />

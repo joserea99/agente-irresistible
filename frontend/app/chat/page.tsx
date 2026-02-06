@@ -129,7 +129,42 @@ export default function ChatPage() {
 
     // ... Export function remains same ...
     const handleExportConversation = async () => {
-        // ...
+        try {
+            const response = await api.post("/chat/export", {
+                history: messages,
+                title: `Conversación - ${selectedDirector}`
+            }, {
+                responseType: 'blob'
+            });
+
+            // Create blob with correct MIME type
+            const blob = new Blob([response.data], {
+                type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            });
+
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+
+            // Clean filename
+            const cleanDirector = selectedDirector.replace(/[^a-z0-9]/gi, '-');
+            const timestamp = new Date().toISOString().slice(0, 10);
+            link.setAttribute('download', `Conversacion-${cleanDirector}-${timestamp}.docx`);
+
+            document.body.appendChild(link);
+            link.click();
+
+            // Cleanup
+            setTimeout(() => {
+                document.body.removeChild(link);
+                window.URL.revokeObjectURL(url);
+            }, 100);
+
+            console.log('✅ Archivo exportado exitosamente');
+        } catch (error) {
+            console.error("Export error:", error);
+            alert("Error al exportar la conversación. Por favor intenta de nuevo.");
+        }
     };
 
     return (

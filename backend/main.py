@@ -12,11 +12,9 @@ app = FastAPI(
 )
 
 # CORS Configuration
-origins = [
     "http://localhost:3000",  # Next.js frontend local
     "https://web-production-7054f.up.railway.app", # Backend URL
     "https://frontend-production-c8fb.up.railway.app", # Frontend Production URL
-    "*"  # Open for development, restrict in production
 ]
 
 app.add_middleware(

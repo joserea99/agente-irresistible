@@ -21,15 +21,17 @@ class UploadResponse(BaseModel):
     status: str
     message: str
 
+from ..services.supabase_service import supabase_service
+
 def process_and_index_file(file_path: str, filename: str, content_type: str):
-    """Background task to process file and index to RAG"""
+    """Background task to process file, upload to Cloud Storage, and index to RAG"""
     try:
         rag = RAGManager()
         text_content = ""
         
         print(f"🔄 Processing file: {filename} ({content_type})")
         
-        # 1. Extract Text
+        # 1. Extract Text (Keep existing logic for extraction)
         if content_type == "application/pdf" or filename.lower().endswith(".pdf"):
             try:
                 reader = pypdf.PdfReader(file_path)
@@ -47,7 +49,6 @@ def process_and_index_file(file_path: str, filename: str, content_type: str):
              # Use MediaService for transcription
              try:
                  media_service = MediaService()
-                 # We assume MediaService can handle the file path
                  print(f"🎙️ Transcribing {filename}...")
                  transcript = media_service.transcribe_media(file_path, mime_type=content_type)
                  text_content = f"--- TRANSCRIPT OF {filename} ---\n{transcript}"
@@ -58,11 +59,31 @@ def process_and_index_file(file_path: str, filename: str, content_type: str):
             print(f"⚠️ Unsupported file type for auto-indexing: {content_type}")
             return
 
-        # 2. Index to RAG
+        # 2. Upload to Supabase Storage (Archival)
+        print(f"☁️ Uploading {filename} to Supabase Storage...")
+        public_url = ""
+        try:
+            with open(file_path, "rb") as f:
+                file_bytes = f.read()
+                
+            # Use 'knowledge-base' bucket
+            bucket_name = "knowledge-base" 
+            storage_path = f"uploads/{filename}"
+            
+            public_url = supabase_service.upload_file(bucket_name, storage_path, file_bytes, content_type)
+            if public_url:
+                print(f"✅ Uploaded to: {public_url}")
+            else:
+                 print("⚠️ Upload failed, using filename as source.")
+                 public_url = f"file://{filename}"
+                 
+        except Exception as e:
+            print(f"❌ Error uploading to storage: {e}")
+            public_url = f"file://{filename}"
+
+        # 3. Index to RAG using Cloud URL as Source
         if text_content.strip():
-            # Use file:// pseudo-protocol for source
-            source = f"file://{filename}"
-            if rag.add_document(text_content, source, title=filename):
+            if rag.add_document(text_content, public_url, title=filename):
                 print(f"✅ Successfully indexed {filename}")
             else:
                 print(f"⚠️ Skipped {filename} (Already exists or empty)")

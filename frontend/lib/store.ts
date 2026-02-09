@@ -4,7 +4,7 @@ import { persist } from 'zustand/middleware';
 
 // API Client
 export const api = axios.create({
-    baseURL: process.env.NEXT_PUBLIC_API_URL || 'https://backend-production-a8ef.up.railway.app',
+    baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000',
     headers: {
         'Content-Type': 'application/json',
     },

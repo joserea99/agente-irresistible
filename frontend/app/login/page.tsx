@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAuthStore, api } from "@/lib/store";
+import { useAuthStore } from "@/lib/store";
 import { useLanguage } from "@/lib/language-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,11 +10,11 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Label } from "@/components/ui/label";
 import { Lock, User } from "lucide-react";
 import { motion } from "framer-motion";
-
+import { supabase } from "@/lib/supabase";
 import Cookies from 'js-cookie';
 
 export default function LoginPage() {
-    const [username, setUsername] = useState("");
+    const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState("");
@@ -28,46 +28,36 @@ export default function LoginPage() {
         setError("");
 
         try {
-            // Fingerprint simulation (simplified for demo)
-            const deviceFingerprint = navigator.userAgent + (new Date()).getMonth(); // Simple fingerprint
-            const response = await api.post("/auth/login", {
-                username,
-                password,
-                device_fingerprint: deviceFingerprint
+            const { data, error } = await supabase.auth.signInWithPassword({
+                email: email,
+                password: password,
             });
-            login(response.data.access_token, response.data.user);
-            Cookies.set('access_token', response.data.access_token, { expires: 1, path: '/' }); // Explicit path to avoid duplicates
-            router.push("/dashboard");
+
+            if (error) throw error;
+
+            if (data.session && data.user) {
+                // Fetch extra profile data if needed, but for now relies on store
+                // We'll update store to handle session
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('*')
+                    .eq('id', data.user.id)
+                    .single();
+
+                const userData = {
+                    username: data.user.email || "",
+                    full_name: profile?.full_name || data.user.user_metadata?.full_name || "Usuario",
+                    role: profile?.role || "member"
+                };
+
+                login(data.session.access_token, userData);
+                Cookies.set('access_token', data.session.access_token, { expires: 1, path: '/' });
+
+                router.push("/dashboard");
+            }
         } catch (err: any) {
-            console.error("Login Error Full:", err);
-            const detail = err.response?.data?.detail;
-            console.log("Error Detail:", detail);
-            console.log("Error Status:", err.response?.status);
-
-            if (err.response?.status === 403) {
-                if (detail?.includes("Trial")) {
-                    router.push("/subscription?reason=trial_expired");
-                    return;
-                }
-                if (detail?.includes("Subscription")) {
-                    router.push("/subscription?reason=expired");
-                    return;
-                }
-            }
-
-            if (err.response?.status === 401) {
-                if (detail?.includes("New device")) {
-                    console.log("Redirecting to verify-device...");
-                    router.push("/verify-device");
-                    return;
-                }
-                // Handle "Incorrect username or password" specifically if needed
-            }
-
-            // Fallback to error from server or generic localized error
-            const errorMessage = detail || t.auth.error;
-            console.error("Setting error message:", errorMessage);
-            setError(errorMessage);
+            console.error("Login Error:", err);
+            setError(err.message || "Error al iniciar sesión");
         } finally {
             setIsLoading(false);
         }
@@ -94,15 +84,16 @@ export default function LoginPage() {
                     <CardContent>
                         <form onSubmit={handleLogin} className="space-y-4">
                             <div className="space-y-2">
-                                <Label htmlFor="username">{t.auth.usernameParams}</Label>
+                                <Label htmlFor="email">Email</Label>
                                 <div className="relative">
                                     <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                                     <Input
-                                        id="username"
-                                        placeholder={t.auth.usernameParams}
+                                        id="email"
+                                        type="email"
+                                        placeholder="correo@ejemplo.com"
                                         className="pl-9 bg-background/50 border-input focus:border-primary transition-all"
-                                        value={username}
-                                        onChange={(e) => setUsername(e.target.value)}
+                                        value={email}
+                                        onChange={(e) => setEmail(e.target.value)}
                                         required
                                     />
                                 </div>
@@ -131,12 +122,12 @@ export default function LoginPage() {
                     <CardFooter className="flex flex-col space-y-2">
                         <div className="text-center">
                             <p className="text-sm text-muted-foreground">
-                                Don't have an account?{" "}
+                                ¿No tienes cuenta?{" "}
                                 <a
                                     href="/register"
                                     className="text-primary hover:underline font-medium"
                                 >
-                                    Sign up
+                                    Regístrate
                                 </a>
                             </p>
                         </div>

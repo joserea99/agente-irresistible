@@ -14,3 +14,4 @@ python-docx
 langchain-google-genai
 langchain-core
 pypdf
+supabase

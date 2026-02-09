@@ -3,8 +3,8 @@
 import { useAuthStore } from "@/lib/store";
 import { useLanguage } from "@/lib/language-context";
 import { useRouter, usePathname } from "next/navigation";
-import { useEffect } from "react";
-import { Sidebar, LayoutDashboard, MessageSquare, Database, LogOut, ChevronRight, Menu, Globe, Swords } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Sidebar, LayoutDashboard, MessageSquare, Database, LogOut, ChevronRight, Menu, Globe, Swords, ShieldAlert } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -17,12 +17,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const router = useRouter();
     const pathname = usePathname();
 
+    const [isHydrated, setIsHydrated] = useState(false);
+
     useEffect(() => {
-        if (!token) {
+        setIsHydrated(true);
+    }, []);
+
+    useEffect(() => {
+        if (isHydrated && !token) {
             router.push("/login");
         }
-    }, [token, router]);
+    }, [token, router, isHydrated]);
 
+    if (!isHydrated) return null; // Or a loading spinner
     if (!user) return null;
 
     const links = [
@@ -30,6 +37,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         { href: "/chat", label: t.dashboard.strategicAgent, icon: MessageSquare },
         { href: "/knowledge", label: t.dashboard.knowledgeBase, icon: Database },
         { href: "/dojo", label: t.dojo.title, icon: Swords }, // Leadership Dojo
+        ...(user.role === 'admin' ? [{ href: "/admin", label: "Admin Console", icon: ShieldAlert }] : []),
     ];
 
     const SidebarContent = () => (

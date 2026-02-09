@@ -13,11 +13,12 @@ import { Trash2, UserCog, ShieldAlert } from "lucide-react";
 import { AVAILABLE_ROLES } from "@/lib/dashboard-config";
 
 interface UserData {
+    id: string; // Added ID for deletion/updates
     username: string;
     full_name: string;
     role: string;
     subscription_status: string;
-    created_at: string;
+    updated_at: string;
 }
 
 export default function AdminPage() {
@@ -50,23 +51,23 @@ export default function AdminPage() {
         }
     }, [user]);
 
-    const handleRoleChange = async (username: string, newRole: string) => {
+    const handleRoleChange = async (userId: string, newRole: string) => {
         try {
-            await api.put(`/auth/users/${username}/role`, { role: newRole });
+            await api.put(`/auth/users/${userId}/role`, { role: newRole });
             // Optimistic update
-            setUsers(users.map(u => u.username === username ? { ...u, role: newRole } : u));
+            setUsers(users.map(u => u.id === userId ? { ...u, role: newRole } : u));
         } catch (error) {
             console.error("Failed to update role", error);
             alert("Failed to update role");
         }
     };
 
-    const handleDeleteUser = async (username: string) => {
-        if (!confirm(`Are you sure you want to delete ${username}? This action cannot be undone.`)) return;
+    const handleDeleteUser = async (userId: string) => {
+        if (!confirm(`Are you sure you want to delete this user? This action cannot be undone.`)) return;
 
         try {
-            await api.delete(`/auth/users/${username}`);
-            setUsers(users.filter(u => u.username !== username));
+            await api.delete(`/auth/users/${userId}`);
+            setUsers(users.filter(u => u.id !== userId));
         } catch (error) {
             console.error("Failed to delete user", error);
             alert("Failed to delete user");
@@ -122,7 +123,7 @@ export default function AdminPage() {
                                             <TableCell>
                                                 <Select
                                                     value={u.role}
-                                                    onValueChange={(val) => handleRoleChange(u.username, val)}
+                                                    onValueChange={(val) => handleRoleChange(u.id, val)}
                                                     disabled={u.username === user.username} // Prevent changing own role effectively to lock out
                                                 >
                                                     <SelectTrigger className="w-[180px] h-8 text-xs">
@@ -148,7 +149,7 @@ export default function AdminPage() {
                                                         variant="ghost"
                                                         size="icon"
                                                         className="h-8 w-8 text-destructive hover:text-destructive/90"
-                                                        onClick={() => handleDeleteUser(u.username)}
+                                                        onClick={() => handleDeleteUser(u.id)}
                                                     >
                                                         <Trash2 className="h-4 w-4" />
                                                     </Button>

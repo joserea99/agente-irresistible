@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { api } from "@/lib/store";
+import { api } from "@/lib/store"; // Still needed for other things? Maybe not for auth.
+import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,27 +13,55 @@ import { motion } from "framer-motion";
 
 export default function RegisterPage() {
     const [formData, setFormData] = useState({
-        username: "",
+        username: "", // This will be treated as a display username or metadata
         email: "",
         password: "",
         full_name: ""
     });
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState("");
+    const [successMessage, setSuccessMessage] = useState("");
     const router = useRouter();
 
     const handleRegister = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsLoading(true);
         setError("");
+        setSuccessMessage("");
 
         try {
-            await api.post("/auth/register", formData);
-            // After successful registration, redirect to login
-            router.push("/login?registered=true");
+            // 1. Sign up with Supabase Auth
+            const { data, error: authError } = await supabase.auth.signUp({
+                email: formData.email,
+                password: formData.password,
+                options: {
+                    data: {
+                        full_name: formData.full_name,
+                        username: formData.username
+                    }
+                }
+            });
+
+            if (authError) throw authError;
+
+            // 2. Check if confirmation is required
+            if (data.user && data.user.identities && data.user.identities.length === 0) {
+                setError("This email is already taken.");
+                return;
+            }
+
+            // Supabase trigger should handle profile creation in 'public.profiles'
+
+            setSuccessMessage("Account created successfully! Redirecting...");
+
+            // Short delay then redirect
+            setTimeout(() => {
+                router.push("/login?registered=true");
+            }, 1500);
+
         } catch (err: any) {
-            const detail = err.response?.data?.detail;
-            setError(detail || "Registration failed. Please try again.");
+            console.error("Registration Error:", err);
+            setError(err.message || "Registration failed. Please try again.");
         } finally {
             setIsLoading(false);
         }
@@ -124,11 +153,12 @@ export default function RegisterPage() {
                                         value={formData.password}
                                         onChange={handleChange}
                                         required
-                                        minLength={4}
+                                        minLength={6}
                                     />
                                 </div>
                             </div>
                             {error && <p className="text-sm text-destructive font-medium">{error}</p>}
+                            {successMessage && <p className="text-sm text-green-500 font-medium">{successMessage}</p>}
                             <Button
                                 type="submit"
                                 className="w-full bg-primary hover:bg-primary/90 transition-all shadow-lg shadow-primary/25"

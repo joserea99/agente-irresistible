@@ -12,18 +12,15 @@ app = FastAPI(
 )
 
 # CORS Configuration
-# CORS Configuration
 origins = [
     "http://localhost:3000",  # Next.js frontend local
+    "https://web-production-7054f.up.railway.app", # Backend URL
+    "https://frontend-production-c8fb.up.railway.app", # Frontend Production URL
 ]
-
-# Robust CORS for Railway Subdomains
-origin_regex = r"https://.*\.railway\.app"
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    allow_origin_regex=origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

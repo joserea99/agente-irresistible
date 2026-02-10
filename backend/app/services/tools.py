@@ -1,11 +1,9 @@
-from langchain_core.tools import tool
 from .rag_service import RAGManager
 import requests
 from bs4 import BeautifulSoup
 from youtube_transcript_api import YouTubeTranscriptApi
 from urllib.parse import urlparse, parse_qs
 
-@tool
 def get_youtube_transcript(url: str) -> str:
     """Extracts the transcript/captions from a YouTube video URL. Use this when the user shares a YouTube link."""
     print(f"🎥 Fetching transcript for: {url}")
@@ -32,7 +30,6 @@ def get_youtube_transcript(url: str) -> str:
     except Exception as e:
         return f"Error extracting transcript: {e} (Note: Video must have captions enabled)"
 
-@tool
 def search_knowledge_base(query: str) -> str:
     """Searches the internal knowledge base (PDFs, crawled pages) for relevant information."""
     print(f"🕵️ Searching Knowledge Base for: {query}")
@@ -42,7 +39,6 @@ def search_knowledge_base(query: str) -> str:
         return "No relevant information found in the knowledge base."
     return results
 
-@tool
 def browse_live_page(url: str) -> str:
     """Visits a live URL to read its content. Use this when the user provides a link."""
     print(f"🌍 Browsing live page: {url}")

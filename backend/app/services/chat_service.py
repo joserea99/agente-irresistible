@@ -5,7 +5,6 @@ Migrated from agent_logic.py
 
 from google import genai
 from google.genai import types
-from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage
 from typing import List, Dict, Optional
 import os
 
@@ -206,7 +205,7 @@ Use this context to provide more specific and accurate answers. If the context d
         """
         Optimizes a search query by translating to English and expanding synonyms.
         """
-        if not self.llm:
+        if not self.client:
             return query
             
         prompt = f"""
@@ -225,8 +224,11 @@ Use this context to provide more specific and accurate answers. If the context d
         """
         
         try:
-            response = self.llm.invoke([HumanMessage(content=prompt)])
-            cleaned = response.content.strip().replace('"', '')
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=prompt
+            )
+            cleaned = response.text.strip().replace('"', '')
             print(f"🔍 Optimized Query: '{query}' -> '{cleaned}'")
             return cleaned
         except Exception as e:

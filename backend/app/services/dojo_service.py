@@ -5,7 +5,6 @@ Migrated from dojo_scenarios.py
 
 from google import genai
 from google.genai import types
-from langchain_core.messages import SystemMessage, HumanMessage
 from typing import List, Dict, Optional
 import os
 import json

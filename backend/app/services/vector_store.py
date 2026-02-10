@@ -1,47 +1,45 @@
 import os
-import google.generativeai as genai
+# import google.generativeai as genai  <-- DEPRECATED
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from .supabase_service import supabase_service
 from typing import List, Dict, Optional
 import uuid
 
 # Configure Gemini
 GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
-if GOOGLE_API_KEY:
-    genai.configure(api_key=GOOGLE_API_KEY)
 
 class VectorStoreService:
     def __init__(self):
         self.supabase = supabase_service.get_client()
-        self.embedding_model = "models/gemini-embedding-001" 
+        # Use LangChain wrapper for embeddings (simpler migration)
+        if GOOGLE_API_KEY:
+            self.embeddings = GoogleGenerativeAIEmbeddings(
+                model="models/embedding-001", 
+                google_api_key=GOOGLE_API_KEY,
+                task_type="retrieval_document"
+            )
+        else:
+            self.embeddings = None
 
     def embed_text(self, text: str) -> List[float]:
         """Generate embedding vector for text using Gemini."""
-        if not GOOGLE_API_KEY:
-            raise ValueError("GOOGLE_API_KEY not found")
+        if not self.embeddings:
+            print("GOOGLE_API_KEY not found associated with embeddings")
+            return []
         
         try:
-            result = genai.embed_content(
-                model=self.embedding_model,
-                content=text,
-                task_type="retrieval_document"
-            )
-            return result['embedding']
+            return self.embeddings.embed_query(text)
         except Exception as e:
             print(f"Error embedding text: {e}")
             return []
 
     def embed_query(self, text: str) -> List[float]:
         """Generate embedding vector for query using Gemini."""
-        if not GOOGLE_API_KEY:
-            raise ValueError("GOOGLE_API_KEY not found")
+        if not self.embeddings:
+            return []
             
         try:
-            result = genai.embed_content(
-                model=self.embedding_model,
-                content=text,
-                task_type="retrieval_query"
-            )
-            return result['embedding']
+            return self.embeddings.embed_query(text)
         except Exception as e:
             print(f"Error embedding query: {e}")
             return []

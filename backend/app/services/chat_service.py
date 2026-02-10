@@ -3,7 +3,8 @@ Chat Service - Handles AI conversations with Gemini
 Migrated from agent_logic.py
 """
 
-from langchain_google_genai import ChatGoogleGenerativeAI
+from google import genai
+from google.genai import types
 from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage
 from typing import List, Dict, Optional
 import os
@@ -38,14 +39,10 @@ class ChatService:
         self.api_key = api_key or os.environ.get("GOOGLE_API_KEY")
         
         if self.api_key:
-            self.llm = ChatGoogleGenerativeAI(
-                model="gemini-2.0-flash",
-                temperature=0.7,
-                google_api_key=self.api_key
-            )
+            self.client = genai.Client(api_key=self.api_key)
+            self.model_name = "gemini-2.0-flash"
         else:
-            self.llm = None
-
+            self.client = None
 
     
     def get_directors(self) -> List[Dict[str, str]]:
@@ -70,17 +67,8 @@ class ChatService:
     ) -> str:
         """
         Generate AI response
-        
-        Args:
-            user_input: User's message
-            history: Conversation history [{"role": "user"|"assistant", "content": "..."}]
-            director: Director persona key
-            rag_context: Optional context from knowledge base
-            
-        Returns:
-            AI response string
         """
-        if not self.llm:
+        if not self.client:
             return "⚠️ **Error:** No Google Gemini API Key configured."
         
         # Get system prompt for selected director
@@ -98,23 +86,34 @@ The following is information retrieved from the church's knowledge base that may
 Use this context to provide more specific and accurate answers. If the context doesn't apply, use your general knowledge.
 """
         
-        # Build messages
-        messages = [SystemMessage(content=system_prompt)]
+        # Build messages for google-genai
+        # It expects a list of Content objects or properly formatted config
+        # We'll use the generate_content API which usually takes system instruction in config
         
-        # Add history (limit to last 10 messages)
+        contents = []
         for msg in history[-10:]:
-            if msg["role"] == "user":
-                messages.append(HumanMessage(content=msg["content"]))
-            else:
-                messages.append(SystemMessage(content=msg["content"]))
-        
-        # Add current user input
-        messages.append(HumanMessage(content=user_input))
+             role = "user" if msg["role"] == "user" else "model"
+             contents.append(types.Content(
+                 role=role,
+                 parts=[types.Part.from_text(text=msg["content"])]
+             ))
+             
+        contents.append(types.Content(
+            role="user",
+            parts=[types.Part.from_text(text=user_input)]
+        ))
         
         # Generate response
         try:
-            response = self.llm.invoke(messages)
-            return response.content
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=contents,
+                config=types.GenerateContentConfig(
+                    system_instruction=system_prompt,
+                    temperature=0.7,
+                )
+            )
+            return response.text
         except Exception as e:
             return f"❌ Error generating response: {str(e)}"
     

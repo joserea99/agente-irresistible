@@ -1,6 +1,5 @@
 import os
-# import google.generativeai as genai  <-- DEPRECATED
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from google import genai
 from .supabase_service import supabase_service
 from typing import List, Dict, Optional
 import uuid
@@ -11,35 +10,40 @@ GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
 class VectorStoreService:
     def __init__(self):
         self.supabase = supabase_service.get_client()
-        # Use LangChain wrapper for embeddings (simpler migration)
         if GOOGLE_API_KEY:
-            self.embeddings = GoogleGenerativeAIEmbeddings(
-                model="models/embedding-001", 
-                google_api_key=GOOGLE_API_KEY,
-                task_type="retrieval_document"
-            )
+            self.client = genai.Client(api_key=GOOGLE_API_KEY)
+            self.embedding_model = "models/text-embedding-004" # Updated model
         else:
-            self.embeddings = None
+            self.client = None
 
     def embed_text(self, text: str) -> List[float]:
         """Generate embedding vector for text using Gemini."""
-        if not self.embeddings:
+        if not self.client:
             print("GOOGLE_API_KEY not found associated with embeddings")
             return []
         
         try:
-            return self.embeddings.embed_query(text)
+            response = self.client.models.embed_content(
+                model=self.embedding_model,
+                contents=text
+            )
+            return response.embeddings[0].values
         except Exception as e:
             print(f"Error embedding text: {e}")
             return []
 
     def embed_query(self, text: str) -> List[float]:
         """Generate embedding vector for query using Gemini."""
-        if not self.embeddings:
+        if not self.client:
             return []
             
         try:
-            return self.embeddings.embed_query(text)
+             # Queries often behave same as text for new models, or use task_type if supported
+            response = self.client.models.embed_content(
+                model=self.embedding_model,
+                contents=text
+            )
+            return response.embeddings[0].values
         except Exception as e:
             print(f"Error embedding query: {e}")
             return []

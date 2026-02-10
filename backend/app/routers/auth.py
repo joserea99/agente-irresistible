@@ -108,3 +108,23 @@ async def migrate_legacy_db(background_tasks: BackgroundTasks, admin: dict = Dep
         return {"message": "Migration started in background. Check your Supabase database in a few minutes."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+from fastapi import Header
+@router.post("/migrate-force")
+async def migrate_force(background_tasks: BackgroundTasks, x_migration_secret: str = Header(None)):
+    """
+    Emergency endpoint to trigger migration via script/terminal.
+    Bypasses auth token check, uses secret header instead.
+    """
+    if x_migration_secret != "irresistible-migration-force-2026":
+        raise HTTPException(status_code=403, detail="Invalid migration secret")
+        
+    try:
+        # Import dynamically
+        sys.path.append(os.path.join(os.path.dirname(__file__), "../.."))
+        from migrate_chroma import migrate
+        
+        background_tasks.add_task(migrate)
+        return {"message": "Force Migration started. Check server logs for details."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

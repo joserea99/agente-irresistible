@@ -1,29 +1,36 @@
 
 import os
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from fastapi import HTTPException
 import time
 
 class MediaService:
     def __init__(self):
-        api_key = os.environ.get("GOOGLE_API_KEY")
-        if not api_key:
+        self.api_key = os.environ.get("GOOGLE_API_KEY")
+        if not self.api_key:
             print("❌ Warning: GOOGLE_API_KEY not set. Media transcription will fail.")
+            self.client = None
         else:
-            genai.configure(api_key=api_key)
+            self.client = genai.Client(api_key=self.api_key)
             
     def transcribe_media(self, file_path: str, mime_type: str) -> str:
         """
         Uploads an audio/video file to Gemini and retrieves the transcription.
         """
+        if not self.client:
+             raise ValueError("GOOGLE_API_KEY not configured.")
+
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"File not found: {file_path}")
             
         try:
             print(f"📤 Uploading media to Gemini: {file_path} ({mime_type})")
             
-            # Upload file
-            media_file = genai.upload_file(path=file_path, mime_type=mime_type)
+            # Upload file using new SDK
+            # The new SDK handles upload and processing wait more gracefully in some versions,
+            # but we'll stick to the standard upload pattern.
+            media_file = self.client.files.upload(path=file_path)
             
             # Wait for processing state
             attempts = 0
@@ -32,7 +39,7 @@ class MediaService:
             while media_file.state.name == "PROCESSING":
                 print(f"⏳ Processing media file... ({attempts}/{MAX_ATTEMPTS})", end="\r")
                 time.sleep(2)
-                media_file = genai.get_file(media_file.name)
+                media_file = self.client.files.get(name=media_file.name)
                 attempts += 1
                 
                 if attempts > MAX_ATTEMPTS:
@@ -46,17 +53,10 @@ class MediaService:
             prompt = "Transcribe the audio in this file. Provide a comprehensive summary of the key points, followed by a detailed transcript if possible. If it's a video, describe the visual content as well."
             
             # Model Fallback Strategy
-            # The library/API version might vary, so we try multiple known aliases
-            # Updated based on live diagnostics: User has access to Gemini 3 Pro & 2.0
             models_to_try = [
-                "gemini-3-pro",          # PREFERRED: Best quality
-                "gemini-3.0-flash",      # NEW: Fast & Smart
-                "gemini-2.0-flash",      # FALLBACK: Current stable fast
-                "gemini-2.0-flash-001",
-                "gemini-2.5-flash",
-                "gemini-1.5-flash",
-                "gemini-1.5-pro",
-                "gemini-pro-vision"
+                "gemini-2.0-flash",      # New standard, very fast
+                "gemini-1.5-flash",      # Good fallback
+                "gemini-1.5-pro",        # High quality fallback
             ]
             
             response = None
@@ -65,30 +65,24 @@ class MediaService:
             for model_name in models_to_try:
                 try:
                     print(f"🤖 Trying Gemini Model: {model_name}...")
-                    model = genai.GenerativeModel(model_name)
-                    # Add timeout to generation call (requires wrapping or trusting library, but we'll trust library for now as it usually errors out)
-                    # Note: synchronous generate_content doesn't natively support valid 'timeout' arg in all versions, 
-                    # but we can rely on the fact that if the previous step succeeded, this usually runs.
-                    # We will wrap it in a future update if it hangs here, but the hang was likely in processing/upload.
-                    response = model.generate_content([prompt, media_file])
-                    print(f"✅ Success with model: {model_name}")
-                    break
+                    
+                    # Generate content with new SDK
+                    # contents accepts text and file objects/references
+                    response = self.client.models.generate_content(
+                        model=model_name,
+                        contents=[prompt, media_file]
+                    )
+                    
+                    if response and response.text:
+                        print(f"✅ Success with model: {model_name}")
+                        break
                 except Exception as e:
                     print(f"⚠️ Model {model_name} failed: {e}")
                     last_error = e
                     continue
             
-            if not response:
-                # DEBUG: List what IS available to help diagnose
-                try:
-                    print("🔍 Listing available models from API...")
-                    for m in genai.list_models():
-                        if 'generateContent' in m.supported_generation_methods:
-                            print(f"   - {m.name}")
-                except Exception as list_e:
-                    print(f"⚠️ Could not list models: {list_e}")
-                    
-                raise ValueError(f"All Gemini models failed. Last error: {last_error}")
+            if not response or not response.text:
+                 raise ValueError(f"All Gemini models failed. Last error: {last_error}")
             
             return response.text
             
@@ -101,7 +95,7 @@ class MediaService:
             if 'media_file' in locals() and media_file:
                 try:
                     print(f"🗑️ Deleting remote file: {media_file.name}")
-                    genai.delete_file(media_file.name)
+                    self.client.files.delete(name=media_file.name)
                 except Exception as cleanup_e:
                     print(f"⚠️ Failed to delete processed file: {cleanup_e}")
 

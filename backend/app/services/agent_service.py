@@ -1,10 +1,10 @@
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage
+from google import genai
+from google.genai import types
 from .tools import search_knowledge_base, browse_live_page, get_youtube_transcript
 from .personas import PERSONAS
 from .dojo_scenarios import EVALUATOR_PROMPTS
 import os
-
+import inspect
 
 
 # Define the Persona
@@ -30,24 +30,31 @@ class AgentEngine:
         self.api_key = api_key or os.environ.get("GOOGLE_API_KEY")
         
         if self.api_key:
-            # We use gemini-1.5-pro or flash for tool use capabilities
-            self.llm = ChatGoogleGenerativeAI(
-                model="gemini-2.0-flash", 
-                temperature=0.7, 
-                google_api_key=self.api_key
-            )
-            # Bind tools
-            self.tools = [search_knowledge_base, browse_live_page, get_youtube_transcript]
-            self.llm_with_tools = self.llm.bind_tools(self.tools)
-            self.tools_map = {t.name: t for t in self.tools}
+            self.client = genai.Client(api_key=self.api_key)
+            self.model_name = "gemini-2.0-flash"
+            
+            # Map tools for execution
+            self.tools_map = {
+                "search_knowledge_base": search_knowledge_base,
+                "browse_live_page": browse_live_page,
+                "get_youtube_transcript": get_youtube_transcript
+            }
+            
+            # Convert tools to Gemini Tool Definition
+            # Note: This is an approximation. Ideally we inspect the functions.
+            # For simplicity in this migration, we are defining them as function declarations.
+            # However, google-genai SDK 1.0+ can often infer from python functions if passed directly.
+            
+            # We'll pass the functions directly to the tools list if supported, or wrapped
+            self.tools_config = [search_knowledge_base, browse_live_page, get_youtube_transcript]
+            
         else:
-            self.llm = None
-            self.llm_with_tools = None
+            self.client = None
 
     def generate_response(self, user_input, history=[], persona_key="Programación de Servicio", system_prompt_override=None, rag_context=None):
         """Generates a response using tools and a specific persona."""
         
-        if not self.llm_with_tools:
+        if not self.client:
             return "⚠️ **Error:** No Google Gemini API Key found. Please enter it in the sidebar."
 
         # Select the correct system prompt
@@ -68,64 +75,96 @@ The following is information retrieved from the church's knowledge base that may
 Use this context to provide more specific and accurate answers. If the context doesn't apply, use your general knowledge.
 """
             
-        messages = [SystemMessage(content=system_prompt)]
-        
-        # Add history (Limit to last 10 messages)
+        contents = []
+        # Add history
         for msg in history[-10:]:
-            if msg["role"] == "user":
-                messages.append(HumanMessage(content=msg["content"]))
-            else:
-                # We simplified history storage, but purely for context window
-                # Ideally we'd reconstruct ToolMessages if we stored them
-                messages.append(SystemMessage(content=msg["content"])) 
+            role = "user" if msg["role"] == "user" else "model"
+            if "role" in msg and msg["role"] == "tool":
+                 # Skip tool messages in history for now or handle them if structure matched
+                 continue 
+            contents.append(types.Content(
+                role=role,
+                parts=[types.Part.from_text(text=msg["content"])]
+            ))
         
-        messages.append(HumanMessage(content=user_input))
+        contents.append(types.Content(
+            role="user",
+            parts=[types.Part.from_text(text=user_input)]
+        ))
         
-        # 1. Initial Call
+        # 1. Initial Call with Tools
         try:
-            response = self.llm_with_tools.invoke(messages)
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=contents,
+                config=types.GenerateContentConfig(
+                    system_instruction=system_prompt,
+                    temperature=0.7,
+                    tools=self.tools_config # Pass python functions directly
+                )
+            )
         except Exception as e:
              return f"❌ Error invoking AI: {e}"
 
         # 2. Check for tool calls
-        if response.tool_calls:
-            # Append the AIMessage (containing the tool call) to history
-            messages.append(response)
+        # google-genai response object has 'candidates' -> 'content' -> 'parts' -> 'function_call'
+        # But SDK might have helper properties.
+        # response.function_calls is a list if present.
+        
+        if response.function_calls:
+            # We need to execute the function calls and send back the results
             
-            # Execute tools
-            for tool_call in response.tool_calls:
-                tool_name = tool_call["name"]
-                tool_args = tool_call["args"]
+            # Start a chat session or append to contents to continue conversation
+            # Constructing the tool response manually
+            
+            # Add the model's response (tool call) to history
+            contents.append(response.candidates[0].content)
+            
+            for tool_call in response.function_calls:
+                tool_name = tool_call.name
+                tool_args = tool_call.args
                 
                 if tool_name in self.tools_map:
                     print(f"🛠️ Executing {tool_name} with {tool_args}")
                     tool_func = self.tools_map[tool_name]
-                    tool_result = tool_func.invoke(tool_args)
                     
-                    # Create ToolMessage
-                    messages.append(ToolMessage(
-                        tool_call_id=tool_call["id"],
-                        name=tool_name,
-                        content=str(tool_result)
+                    try:
+                        # Invoke based on args dict
+                        tool_result = tool_func.invoke(tool_args)
+                    except:
+                        # Fallback if invoke pattern matches or just call
+                         tool_result = tool_func(**tool_args)
+                    
+                    # Create Tool Response Part
+                    contents.append(types.Content(
+                        role="tool",
+                        parts=[types.Part.from_function_response(
+                            name=tool_name,
+                            response={"result": str(tool_result)} 
+                        )]
                     ))
             
             # 3. Final Call with Tool Outputs
             try:
-                final_response = self.llm_with_tools.invoke(messages)
-                return final_response.content
+                final_response = self.client.models.generate_content(
+                    model=self.model_name,
+                    contents=contents,
+                     config=types.GenerateContentConfig(
+                        system_instruction=system_prompt,
+                        temperature=0.7
+                    )
+                )
+                return final_response.text
             except Exception as e:
                 return f"❌ Error generating final response: {e}"
         
-        return response.content
+        return response.text
 
     def evaluate_dojo_performance(self, history, scenario_name, language="es"):
         """Evaluates the roleplay session."""
-        if not self.llm:
+        if not self.client:
             return "Error: No API Key."
             
-        # Import the prompt dictionary within method to ensure freshness (or use global)
-        # EVALUATOR_PROMPTS is imported at module level now
-        
         # Select prompt based on language
         eval_prompt = EVALUATOR_PROMPTS.get(language, EVALUATOR_PROMPTS["es"])
             
@@ -144,10 +183,11 @@ Use this context to provide more specific and accurate answers. If the context d
         {conversation_text}
         """
         
-        messages = [HumanMessage(content=prompt)]
-        
         try:
-            response = self.llm.invoke(messages)
-            return response.content
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=prompt
+            )
+            return response.text
         except Exception as e:
             return f"❌ Error generating evaluation: {e}"

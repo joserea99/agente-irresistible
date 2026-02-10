@@ -1,5 +1,5 @@
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.messages import SystemMessage, HumanMessage
+from google import genai
+from google.genai import types
 import os
 from typing import Optional, List
 
@@ -11,20 +11,23 @@ class MagicService:
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or os.environ.get("GOOGLE_API_KEY")
         if self.api_key:
-            self.llm = ChatGoogleGenerativeAI(
-                model="gemini-2.0-flash",
-                temperature=0.7,
-                google_api_key=self.api_key
-            )
+            self.client = genai.Client(api_key=self.api_key)
+            self.model = "gemini-2.0-flash"
         else:
-            self.llm = None
+            self.client = None
 
     def _call_llm(self, prompt: str) -> str:
-        if not self.llm:
+        if not self.client:
             return "Error: Gemini API Key not configured."
         try:
-            response = self.llm.invoke([HumanMessage(content=prompt)])
-            return response.content
+            response = self.client.models.generate_content(
+                model=self.model,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    temperature=0.7,
+                )
+            )
+            return response.text
         except Exception as e:
             return f"Error generating content: {str(e)}"
 

@@ -3,7 +3,8 @@ Dojo Service - Leadership Simulation Scenarios
 Migrated from dojo_scenarios.py
 """
 
-from langchain_google_genai import ChatGoogleGenerativeAI
+from google import genai
+from google.genai import types
 from langchain_core.messages import SystemMessage, HumanMessage
 from typing import List, Dict, Optional
 import os
@@ -189,13 +190,11 @@ class DojoService:
         self.api_key = api_key or os.environ.get("GOOGLE_API_KEY")
         
         if self.api_key:
-            self.llm = ChatGoogleGenerativeAI(
-                model="gemini-2.0-flash",
-                temperature=0.8,  # Higher temperature for more varied roleplay
-                google_api_key=self.api_key
-            )
+            self.client = genai.Client(api_key=self.api_key)
+            self.model_name = "gemini-2.0-flash"
         else:
-            self.llm = None
+            self.client = None
+
     
     def get_scenarios(self, language: str = "es") -> List[Dict[str, str]]:
         """Get list of available scenarios"""
@@ -235,17 +234,8 @@ class DojoService:
     ) -> str:
         """
         Generate roleplay response from the scenario character
-        
-        Args:
-            scenario_id: ID of the scenario
-            user_input: User's message
-            history: Conversation history
-            language: Language (es/en)
-            
-        Returns:
-            Character's response
         """
-        if not self.llm:
+        if not self.client:
             return "⚠️ **Error:** No Google Gemini API Key configured."
         
         if custom_system_prompt:
@@ -257,23 +247,31 @@ class DojoService:
             lang_data = scenario.get(language, scenario["es"])
             system_prompt = lang_data["system_prompt"]
         
-        # Build messages
-        messages = [SystemMessage(content=system_prompt)]
-        
-        # Add history
+        # Build messages for google-genai
+        contents = []
         for msg in history:
-            if msg["role"] == "user":
-                messages.append(HumanMessage(content=msg["content"]))
-            else:
-                messages.append(SystemMessage(content=msg["content"]))
+             role = "user" if msg["role"] == "user" else "model"
+             contents.append(types.Content(
+                 role=role,
+                 parts=[types.Part.from_text(text=msg["content"])]
+             ))
         
-        # Add current user input
-        messages.append(HumanMessage(content=user_input))
+        contents.append(types.Content(
+            role="user",
+            parts=[types.Part.from_text(text=user_input)]
+        ))
         
         # Generate response
         try:
-            response = self.llm.invoke(messages)
-            return response.content
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=contents,
+                config=types.GenerateContentConfig(
+                    system_instruction=system_prompt,
+                    temperature=0.8,
+                )
+            )
+            return response.text
         except Exception as e:
             return f"❌ Error generating response: {str(e)}"
     
@@ -286,16 +284,8 @@ class DojoService:
     ) -> str:
         """
         Evaluate the user's performance in the roleplay
-        
-        Args:
-            scenario_id: ID of the scenario
-            history: Full conversation history
-            language: Language (es/en)
-            
-        Returns:
-            Evaluation feedback
         """
-        if not self.llm:
+        if not self.client:
             return "⚠️ **Error:** No Google Gemini API Key configured."
         
         
@@ -323,11 +313,12 @@ TRANSCRIPT:
 {conversation_text}
 """
         
-        messages = [HumanMessage(content=prompt)]
-        
         try:
-            response = self.llm.invoke(messages)
-            return response.content
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=prompt
+            )
+            return response.text
         except Exception as e:
             return f"❌ Error generating evaluation: {str(e)}"
 
@@ -335,7 +326,7 @@ TRANSCRIPT:
         """
         Generate a full scenario from a short user description
         """
-        if not self.llm:
+        if not self.client:
             return {"error": "No Google Gemini API Key configured."}
             
         prompt = f"""
@@ -360,11 +351,15 @@ TRANSCRIPT:
         If Target Language is 'es', ensure ALL fields (name, description, etc.) are in Spanish.
         """
         
-        messages = [HumanMessage(content=prompt)]
-        
         try:
-            response = self.llm.invoke(messages)
-            content = response.content.replace("```json", "").replace("```", "").strip()
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json"
+                )
+            )
+            content = response.text.replace("```json", "").replace("```", "").strip()
             # clean up potential markdown
             
             scenario_data = json.loads(content)

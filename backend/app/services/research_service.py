@@ -95,20 +95,37 @@ class ResearchService:
             bf_id = bfs[0]['id']
             print(f"✅ [Research] Using Brandfolder: {bfs[0].get('attributes', {}).get('name')} ({bf_id})")
             
-            # 3. Search Assets
-            print(f"🔍 [Research] Searching assets with query: '{optimized_query}'")
-            raw_assets = self.bf_api.search_assets(bf_id, optimized_query)
-            print(f"✅ [Research] Found {len(raw_assets)} assets with optimized query")
+            # 3. Search Assets (Tiered Approach)
             
-            # FALLBACK: If optimized query yields no results, try the original query
-            if not raw_assets and query != optimized_query:
-                print(f"⚠️ [Research] Optimized query failed. Retrying with raw query: '{query}'")
-                raw_assets = self.bf_api.search_assets(bf_id, query)
-                print(f"✅ [Research] Found {len(raw_assets)} assets with raw query")
-
-            # FALLBACK 2: If still nothing, try extracting key terms and joining with OR
+            # Tier 1: Exact Match (High Precision)
+            print(f"🔍 [Research] Tier 1: Exact search for '{query}'")
+            exact_assets = self.bf_api.search_assets(bf_id, f'"{query}"') # Quote for exact phrase if supported, or just raw
+            print(f"✅ [Research] Found {len(exact_assets)} exact matches")
+            
+            # Tier 2: Conceptual/Optimized (High Recall)
+            optimized_assets = []
+            if query != optimized_query:
+                print(f"🔍 [Research] Tier 2: Conceptual search for '{optimized_query}'")
+                optimized_assets = self.bf_api.search_assets(bf_id, optimized_query)
+                print(f"✅ [Research] Found {len(optimized_assets)} conceptual matches")
+            
+            # Merge Results (Priority: Exact -> Conceptual)
+            # Use a dict to remove duplicates by ID, preserving order
+            merged_assets_map = {}
+            
+            for asset in exact_assets:
+                merged_assets_map[asset['id']] = asset
+                
+            for asset in optimized_assets:
+                 if asset['id'] not in merged_assets_map:
+                     merged_assets_map[asset['id']] = asset
+            
+            # Convert back to list
+            raw_assets = list(merged_assets_map.values())
+            
+            # Fallback Logic (if still empty)
             if not raw_assets:
-                 # Split by space, remove common Spanish stop words
+                 # Try OR query as last resort
                  stop_words = {'el', 'la', 'los', 'las', 'un', 'una', 'unos', 'unas', 'y', 'o', 'de', 'del', 'a', 'ante', 'bajo', 'con', 'contra', 'de', 'desde', 'en', 'entre', 'hacia', 'hasta', 'para', 'por', 'según', 'sin', 'so', 'sobre', 'tras'}
                  words = [w for w in query.split() if w.lower() not in stop_words and len(w) > 3]
                  
@@ -117,13 +134,8 @@ class ResearchService:
                      print(f"⚠️ [Research] Retrying with OR keywords: '{or_query}'")
                      raw_assets = self.bf_api.search_assets(bf_id, or_query)
                      print(f"✅ [Research] Found {len(raw_assets)} assets with OR query")
-
-            # FALLBACK 3: Last resort, try just the first significant word
-            if not raw_assets and words:
-                 simple_query = words[0]
-                 print(f"⚠️ [Research] Last resort query: '{simple_query}'")
-                 raw_assets = self.bf_api.search_assets(bf_id, simple_query)
-                 print(f"✅ [Research] Found {len(raw_assets)} assets with simple query")
+            
+            print(f"✅ [Research] Total combined unique assets: {len(raw_assets)}")
             
             # 4. Save Session & Assets Draft
             print(f"💾 [Research] Saving session {session_id} to DB...")

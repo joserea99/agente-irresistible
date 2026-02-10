@@ -25,7 +25,7 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     message: str
-    session_id: str
+    session_id: Optional[str] = None
     session_title: Optional[str] = None
 
 class ExportRequest(BaseModel):
@@ -61,7 +61,10 @@ async def send_message(
             title = " ".join(request.message.split()[:5]) + "..."
             session_id = history_service.create_session(user_id, request.director, title)
             session_title = title
-            print(f"🆕 Created new chat session: {session_id}")
+            if session_id:
+                print(f"🆕 Created new chat session: {session_id}")
+            else:
+                print("⚠️ Failed to create session. Chat will not be saved.")
         
         # 2. Save User Message
         history_service.add_message(session_id, "user", request.message)

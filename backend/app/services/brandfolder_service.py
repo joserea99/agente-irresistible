@@ -123,11 +123,53 @@ class BrandfolderAPI:
         else:
             raise ValueError("Must provide section_id, collection_id, or brandfolder_id")
         
+        # Initial request
         result = self._request("GET", endpoint, params)
         
         # Map included attachments to assets
         assets = result.get("data") or []
         included = result.get("included") or []
+        
+        # Pagination Loop
+        meta = result.get("meta", {})
+        pagination = meta.get("pagination", {})
+        next_page = pagination.get("next_page")
+        
+        while next_page:
+            print(f"📄 Fetching next page: {next_page}...")
+            # next_page is usually a full URL or relative path? Brandfolder API returns full URL often or we just increment page param
+            # Actually standard JSON API often puts links in 'links' object.
+            # Brandfolder docs say: meta.pagination.next_page (int) or links.next (url)
+            # Let's check 'links.next' first as it's safer
+            links = result.get("links", {})
+            next_url = links.get("next")
+            
+            if next_url:
+                # If we have a direct link, use it. But _request builds URL from endpoint.
+                # Simplest way is to just increment page parameter if we know we are paginating
+                current_page = pagination.get("current_page")
+                if not current_page:
+                    break # Safety break
+                    
+                params["page"] = current_page + 1
+                result = self._request("GET", endpoint, params)
+                
+                new_assets = result.get("data") or []
+                new_included = result.get("included") or []
+                
+                if not new_assets:
+                    break
+                    
+                assets.extend(new_assets)
+                included.extend(new_included)
+                
+                # Update pagination info for next iteration
+                meta = result.get("meta", {})
+                pagination = meta.get("pagination", {})
+                next_page = pagination.get("next_page")
+            else:
+                break
+                
         return self._map_attachments_to_assets(assets, included)
     
     def search_assets(self, brandfolder_id: str, query: str, 
@@ -147,11 +189,42 @@ class BrandfolderAPI:
         if include_attachments:
             params["include"] = "attachments"
         
+        # Initial Request
         result = self._request("GET", f"/brandfolders/{brandfolder_id}/assets", params)
         
         # Map included attachments to assets
         assets = result.get("data") or []
         included = result.get("included") or []
+        
+        # Pagination Loop
+        meta = result.get("meta", {})
+        pagination = meta.get("pagination", {})
+        next_page = pagination.get("next_page")
+        
+        while next_page:
+            print(f"🔎 Fetching search page: {next_page}...")
+            
+            current_page = pagination.get("current_page")
+            if not current_page:
+                break
+                
+            params["page"] = current_page + 1
+            result = self._request("GET", f"/brandfolders/{brandfolder_id}/assets", params)
+            
+            new_assets = result.get("data") or []
+            new_included = result.get("included") or []
+            
+            if not new_assets:
+                break
+                
+            assets.extend(new_assets)
+            included.extend(new_included)
+            
+            # Update info
+            meta = result.get("meta", {})
+            pagination = meta.get("pagination", {})
+            next_page = pagination.get("next_page")
+
         return self._map_attachments_to_assets(assets, included)
     
     def _map_attachments_to_assets(self, assets: List[Dict], included: List[Dict]) -> List[Dict]:

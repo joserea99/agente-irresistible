@@ -148,7 +148,7 @@ class ResearchService:
             proposed_assets = []
             
             print(f"Processing {len(raw_assets)} raw assets...")
-            for asset in raw_assets[:100]: # Increased cap from 20 to 100 for deeper research
+            for asset in raw_assets[:1000]: # Increased cap to 1000 for full coverage
                 info = self.bf_api.extract_asset_info(asset)
                 
                 # Determine type

@@ -132,43 +132,31 @@ class BrandfolderAPI:
         
         # Pagination Loop
         meta = result.get("meta", {})
-        pagination = meta.get("pagination", {})
-        next_page = pagination.get("next_page")
+        # Brandfolder API puts pagination info directly in meta root sometimes, or in meta.pagination
+        # debug_raw_response.py showed keys: ['current_page', 'next_page', ...] directly in meta
+        next_page = meta.get("next_page")
         
         while next_page:
-            print(f"📄 Fetching next page: {next_page}...")
-            # next_page is usually a full URL or relative path? Brandfolder API returns full URL often or we just increment page param
-            # Actually standard JSON API often puts links in 'links' object.
-            # Brandfolder docs say: meta.pagination.next_page (int) or links.next (url)
-            # Let's check 'links.next' first as it's safer
-            links = result.get("links", {})
-            next_url = links.get("next")
+            print(f"📄 Fetching page {next_page}...")
             
-            if next_url:
-                # If we have a direct link, use it. But _request builds URL from endpoint.
-                # Simplest way is to just increment page parameter if we know we are paginating
-                current_page = pagination.get("current_page")
-                if not current_page:
-                    break # Safety break
-                    
-                params["page"] = current_page + 1
-                result = self._request("GET", endpoint, params)
-                
-                new_assets = result.get("data") or []
-                new_included = result.get("included") or []
-                
-                if not new_assets:
-                    break
-                    
-                assets.extend(new_assets)
-                included.extend(new_included)
-                
-                # Update pagination info for next iteration
-                meta = result.get("meta", {})
-                pagination = meta.get("pagination", {})
-                next_page = pagination.get("next_page")
-            else:
+            # Brandfolder API returns next_page as an integer in meta.
+            # It does NOT reliably return links.next.
+            
+            params["page"] = next_page
+            result = self._request("GET", endpoint, params)
+            
+            new_assets = result.get("data") or []
+            new_included = result.get("included") or []
+            
+            if not new_assets:
                 break
+                
+            assets.extend(new_assets)
+            included.extend(new_included)
+            
+            # Update pagination info for next iteration
+            meta = result.get("meta", {})
+            next_page = meta.get("next_page") # Returns None if no more pages
                 
         return self._map_attachments_to_assets(assets, included)
     
@@ -198,17 +186,12 @@ class BrandfolderAPI:
         
         # Pagination Loop
         meta = result.get("meta", {})
-        pagination = meta.get("pagination", {})
-        next_page = pagination.get("next_page")
+        next_page = meta.get("next_page")
         
         while next_page:
-            print(f"🔎 Fetching search page: {next_page}...")
+            print(f"🔎 Fetching search page {next_page}...")
             
-            current_page = pagination.get("current_page")
-            if not current_page:
-                break
-                
-            params["page"] = current_page + 1
+            params["page"] = next_page
             result = self._request("GET", f"/brandfolders/{brandfolder_id}/assets", params)
             
             new_assets = result.get("data") or []
@@ -222,8 +205,7 @@ class BrandfolderAPI:
             
             # Update info
             meta = result.get("meta", {})
-            pagination = meta.get("pagination", {})
-            next_page = pagination.get("next_page")
+            next_page = meta.get("next_page")
 
         return self._map_attachments_to_assets(assets, included)
     

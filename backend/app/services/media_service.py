@@ -30,7 +30,7 @@ class MediaService:
             # Upload file using new SDK
             # The new SDK handles upload and processing wait more gracefully in some versions,
             # but we'll stick to the standard upload pattern.
-            media_file = self.client.files.upload(path=file_path)
+            media_file = self.client.files.upload(file=file_path)
             
             # Wait for processing state
             attempts = 0

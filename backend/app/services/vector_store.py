@@ -12,7 +12,7 @@ class VectorStoreService:
         self.supabase = supabase_service.get_client()
         if GOOGLE_API_KEY:
             self.client = genai.Client(api_key=GOOGLE_API_KEY)
-            self.embedding_model = "models/text-embedding-004" # Updated model
+            self.embedding_model = "text-embedding-004" # Updated model (no prefix for new SDK)
         else:
             self.client = None
 
@@ -27,6 +27,9 @@ class VectorStoreService:
                 model=self.embedding_model,
                 contents=text
             )
+            if not response or not response.embeddings:
+                print(f"Warning: No embeddings returned for text")
+                return []
             return response.embeddings[0].values
         except Exception as e:
             print(f"Error embedding text: {e}")
@@ -38,11 +41,13 @@ class VectorStoreService:
             return []
             
         try:
-             # Queries often behave same as text for new models, or use task_type if supported
+            # Queries often behave same as text for new models, or use task_type if supported
             response = self.client.models.embed_content(
                 model=self.embedding_model,
                 contents=text
             )
+            if not response or not response.embeddings:
+                 return []
             return response.embeddings[0].values
         except Exception as e:
             print(f"Error embedding query: {e}")

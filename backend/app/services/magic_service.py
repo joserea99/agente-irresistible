@@ -18,7 +18,8 @@ class MagicService:
 
     def _call_llm(self, prompt: str) -> str:
         if not self.client:
-            return "Error: Gemini API Key not configured."
+            print("❌ GOOGLE_API_KEY not found in environment variables.")
+            return "Error: Gemini API Configuration Missing. Please check server logs and environment variables."
         try:
             response = self.client.models.generate_content(
                 model=self.model,
@@ -29,6 +30,7 @@ class MagicService:
             )
             return response.text
         except Exception as e:
+            print(f"❌ Gemini Generation Error: {e}")
             return f"Error generating content: {str(e)}"
 
     def generate_small_group_guide(self, content: str, language: str = "en") -> str:

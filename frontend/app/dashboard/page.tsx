@@ -232,28 +232,30 @@ export default function DashboardPage() {
                             </CardContent>
                         </Card>
 
-                        {/* System Status Updated */}
-                        <Card className="bg-muted/30 border-none shadow-none">
-                            <CardHeader className="pb-2">
-                                <CardTitle className="text-sm text-muted-foreground">{t.dashboard.systemHealth}</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="flex flex-col">
-                                        <span className="text-xs text-muted-foreground">{t.dashboard.backend}</span>
-                                        <span className="text-sm font-medium text-green-600 flex items-center gap-1">
-                                            <CheckCircle className="h-3 w-3" /> {t.dashboard.operational}
-                                        </span>
+                        {/* System Status Updated - Only for Admin */}
+                        {user?.role === 'admin' && (
+                            <Card className="bg-muted/30 border-none shadow-none">
+                                <CardHeader className="pb-2">
+                                    <CardTitle className="text-sm text-muted-foreground">{t.dashboard.systemHealth}</CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="flex flex-col">
+                                            <span className="text-xs text-muted-foreground">{t.dashboard.backend}</span>
+                                            <span className="text-sm font-medium text-green-600 flex items-center gap-1">
+                                                <CheckCircle className="h-3 w-3" /> {t.dashboard.operational}
+                                            </span>
+                                        </div>
+                                        <div className="flex flex-col">
+                                            <span className="text-xs text-muted-foreground">{t.dashboard.database}</span>
+                                            <span className="text-sm font-medium text-green-600 flex items-center gap-1">
+                                                <CheckCircle className="h-3 w-3" /> {t.dashboard.connected}
+                                            </span>
+                                        </div>
                                     </div>
-                                    <div className="flex flex-col">
-                                        <span className="text-xs text-muted-foreground">{t.dashboard.database}</span>
-                                        <span className="text-sm font-medium text-green-600 flex items-center gap-1">
-                                            <CheckCircle className="h-3 w-3" /> {t.dashboard.connected}
-                                        </span>
-                                    </div>
-                                </div>
-                            </CardContent>
-                        </Card>
+                                </CardContent>
+                            </Card>
+                        )}
                     </div>
                 </div>
             </div>

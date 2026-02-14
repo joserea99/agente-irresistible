@@ -49,9 +49,10 @@ export function MagicMenu({ source, title }: MagicMenuProps) {
                 language: language // Pass current language context
             });
             setResult(response.data.result);
-        } catch (error) {
+        } catch (error: any) {
             console.error("Magic generation failed", error);
-            setResult(`❌ ${t.magic.error}`);
+            const msg = error.response?.data?.detail || error.message || t.magic.error;
+            setResult(`❌ ${msg}`);
         } finally {
             setIsLoading(false);
         }

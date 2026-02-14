@@ -53,10 +53,10 @@ Simula situaciones reales de liderazgo antes de enfrentarlas en la vida real.
 
 ---
 
-### 3. 🧠 Smart Learning (Aprendizaje Automático)
-*Conecta tu iglesia con la red de recursos de Andy Stanley.*
+### 🧠 Smart Learning (Aprendizaje Automático)
+*Conecta tu iglesia con la red de recursos exclusivos.*
 
-Este módulo busca, descarga y "aprende" contenido directamente de Brandfolder para nutrir la base de conocimiento de tu agente.
+Este módulo busca, descarga y "aprende" contenido directamente de la **Red de Recursos Irresistible** para nutrir la base de conocimiento de tu agente.
 
 **Cómo usarlo:**
 1. Ve a la sección **"🧠 Smart Learning"** en el menú lateral.

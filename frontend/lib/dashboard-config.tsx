@@ -58,8 +58,8 @@ export const getDashboardConfig = (role: string = "member", t: any): DashboardCo
         greeting: (name) => `${t.dashboard.welcome}, ${name}`,
         stats: [
             { label: t.dashboard.activeSession, value: t.dashboard.status.online, icon: Brain, color: "text-purple-500", desc: t.dashboard.systemOnline },
-            { label: t.dashboard.knowledgeBase, value: "Indexed", icon: Library, color: "text-blue-500", desc: t.dashboard.readyToProcess },
-            { label: t.dashboard.systemStatus, value: "98%", icon: Zap, color: "text-green-500", desc: t.dashboard.operational },
+            { label: t.dashboard.knowledgeBase, value: "Indexed", icon: Library, color: "text-blue-500", desc: "Network Connected" },
+            { label: t.dashboard.knowledgeBase, value: "Indexed", icon: Library, color: "text-pink-500", desc: "Network Connected" },
         ],
         quickActions: [
             {

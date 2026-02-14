@@ -1,6 +1,7 @@
 "use client";
 
 import { useAuthStore } from "@/lib/store";
+import { supabase } from "@/lib/supabase";
 import { useLanguage } from "@/lib/language-context";
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -21,7 +22,28 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
     useEffect(() => {
         setIsHydrated(true);
-    }, []);
+
+        // Listen for Auth Changes from Supabase Client (handles refresh automatically)
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+            if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+                if (session) {
+                    // Update store silently to keep token fresh
+                    useAuthStore.getState().login(session.access_token, {
+                        username: session.user.email || "",
+                        full_name: session.user.user_metadata.full_name || "",
+                        role: "member" // Role might need refetching if critical, but token is key
+                    });
+                }
+            } else if (event === 'SIGNED_OUT') {
+                logout();
+                router.push("/login");
+            }
+        });
+
+        return () => {
+            subscription.unsubscribe();
+        };
+    }, [logout, router]);
 
     useEffect(() => {
         if (isHydrated && !token) {

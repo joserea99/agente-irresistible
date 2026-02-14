@@ -13,3 +13,4 @@ beautifulsoup4
 python-docx
 pypdf
 supabase
+stripe

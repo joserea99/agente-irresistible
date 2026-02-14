@@ -4,7 +4,7 @@ import time
 import os
 
 # Configuration
-BACKEND_URL = "https://web-production-7054f.up.railway.app"
+BACKEND_URL = "https://backend-production-a8ef.up.railway.app"
 MIGRATION_SECRET = "irresistible-migration-force-2026"
 
 def print_header():

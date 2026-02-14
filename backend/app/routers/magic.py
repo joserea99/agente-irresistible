@@ -26,7 +26,8 @@ async def generate_magic_content(request: MagicRequest):
     
     if not content:
         # Fallback: Maybe they passed the text directly? (Backward compatibility if needed, but let's stick to source for now)
-        raise HTTPException(status_code=404, detail="Document content not found in Knowledge Base")
+        print(f"❌ Content not found for source: {request.document_source}")
+        raise HTTPException(status_code=404, detail=f"Document content not found. It may have been indexed without a valid API Key. Please re-upload.")
 
     result = ""
     

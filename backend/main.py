@@ -16,6 +16,8 @@ origins = [
     "http://localhost:3000",  # Next.js frontend local
     "https://web-production-7054f.up.railway.app", # Backend URL
     "https://frontend-production-c8fb.up.railway.app", # Frontend Production URL
+    "https://www.irresistibleagent.com", # Custom Domain
+    "https://irresistibleagent.com", # Custom Domain Root
 ]
 
 app.add_middleware(
@@ -43,3 +45,7 @@ app.include_router(brandfolder.router, prefix="/brandfolder", tags=["Brandfolder
 app.include_router(magic.router, prefix="/magic", tags=["Magic"])
 app.include_router(dojo.router, prefix="/dojo", tags=["Dojo"])
 app.include_router(knowledge.router, prefix="/knowledge", tags=["Knowledge"])
+
+# Subscription Router
+from app.routers import subscription
+app.include_router(subscription.router, prefix="/subscription", tags=["Subscription"])

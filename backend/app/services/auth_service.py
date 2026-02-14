@@ -25,13 +25,54 @@ def verify_token(token: str) -> Tuple[Optional[dict], str]:
         
         if not profile:
             # Fallback for race condition where trigger hasn't run yet
+            # Initialize with 15 days trial implicitly for the session
             return {
                 "id": user.id,
                 "email": user.email,
                 "role": "member",
                 "subscription_status": "trial",
+                "trial_ends_at": (datetime.now() + timedelta(days=15)).isoformat(),
                 "full_name": user.user_metadata.get("full_name", "")
             }, "success"
+
+        # Initialize trial if it's null (for existing users who didn't have this field)
+        if not profile.get("trial_ends_at") and profile.get("subscription_status") == "trial":
+            try:
+                # Set 15 days from now
+                trial_end = datetime.now() + timedelta(days=15)
+                supabase_service.update_profile(user.id, {
+                    "trial_ends_at": trial_end.isoformat(),
+                    "subscription_status": "trial" # ensure status is set
+                })
+                profile["trial_ends_at"] = trial_end.isoformat()
+            except Exception as e:
+                print(f"Error initializing trial: {e}")
+
+        # 3. Check Subscription Status
+        status = profile.get("subscription_status", "trial")
+        
+        if status == "active" or profile.get("role") == "admin":
+             return profile, "success"
+
+        if status == "trial":
+            trial_end_str = profile.get("trial_ends_at")
+            if trial_end_str:
+                try:
+                    # Parse timestamp (Supabase usually returns ISO 8601)
+                    if isinstance(trial_end_str, str):
+                        # Handle potential 'Z' or offset if needed, simple approach first
+                        trial_end = datetime.fromisoformat(trial_end_str.replace('Z', '+00:00'))
+                    else:
+                        trial_end = trial_end_str
+
+                    if datetime.now(trial_end.tzinfo) > trial_end:
+                         # Trial Expired
+                         return None, "trial_expired"
+                except Exception as e:
+                    print(f"Error parsing trial date: {e}")
+                    # If date error, fail safe to allow or block? Block is safer for SaaS
+                    # But for now let's log and allow to avoid locking out due to format issues
+                    pass
 
         return profile, "success"
 

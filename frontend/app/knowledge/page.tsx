@@ -13,7 +13,7 @@ export default function KnowledgePage() {
                 <div>
                     <h2 className="text-3xl font-bold font-heading tracking-tight">Base de Conocimiento</h2>
                     <p className="text-muted-foreground mt-2">
-                        Administra y amplía lo que el Agente sabe. Sube archivos manuales o sincroniza con Brandfolder.
+                        Administra y amplía lo que el Agente sabe. Sube archivos manuales o sincroniza con la Red Global.
                     </p>
                 </div>
 

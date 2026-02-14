@@ -6,7 +6,10 @@ import { FileUploader } from "@/components/file-uploader";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
+import { useAuthStore } from "@/lib/store";
+
 export default function KnowledgePage() {
+    const { user } = useAuthStore();
     return (
         <DashboardLayout>
             <div className="space-y-6">
@@ -20,24 +23,28 @@ export default function KnowledgePage() {
                 <Tabs defaultValue="research" className="w-full">
                     <TabsList className="grid w-full grid-cols-2 lg:w-[400px]">
                         <TabsTrigger value="research">Investigación Profunda</TabsTrigger>
-                        <TabsTrigger value="upload">Subida Directa</TabsTrigger>
+                        {user?.role === 'admin' && (
+                            <TabsTrigger value="upload">Subida Directa (Admin)</TabsTrigger>
+                        )}
                     </TabsList>
 
-                    <TabsContent value="upload" className="mt-6">
-                        <div className="grid gap-6">
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle>Cargar Archivos</CardTitle>
-                                    <CardDescription>
-                                        Sube PDFs, audios o videos. El agente los procesará y aprenderá de ellos automáticamente.
-                                    </CardDescription>
-                                </CardHeader>
-                                <CardContent>
-                                    <FileUploader />
-                                </CardContent>
-                            </Card>
-                        </div>
-                    </TabsContent>
+                    {user?.role === 'admin' && (
+                        <TabsContent value="upload" className="mt-6">
+                            <div className="grid gap-6">
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle>Cargar Archivos</CardTitle>
+                                        <CardDescription>
+                                            Sube PDFs, audios o videos. El agente los procesará y aprenderá de ellos automáticamente.
+                                        </CardDescription>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <FileUploader />
+                                    </CardContent>
+                                </Card>
+                            </div>
+                        </TabsContent>
+                    )}
 
                     <TabsContent value="research" className="mt-6">
                         <DeepResearch />

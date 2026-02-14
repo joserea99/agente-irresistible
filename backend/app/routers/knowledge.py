@@ -1,5 +1,5 @@
 
-from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks
+from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks, Depends
 import shutil
 import os
 import uuid
@@ -21,7 +21,25 @@ class UploadResponse(BaseModel):
     status: str
     message: str
 
+    message: str
+
 from ..services.supabase_service import supabase_service
+from ..services.auth_service import verify_token
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+
+security = HTTPBearer()
+
+async def get_current_admin(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    token = credentials.credentials
+    profile, error = verify_token(token)
+    
+    if error != "success" or not profile:
+         raise HTTPException(status_code=401, detail="Invalid token")
+    
+    if profile.get("role") != "admin":
+         raise HTTPException(status_code=403, detail="Admin access required")
+         
+    return profile
 
 def process_and_index_file(file_path: str, filename: str, content_type: str):
     """Background task to process file, upload to Cloud Storage, and index to RAG"""
@@ -101,7 +119,8 @@ def process_and_index_file(file_path: str, filename: str, content_type: str):
 @router.post("/upload", response_model=UploadResponse)
 async def upload_file(
     background_tasks: BackgroundTasks,
-    file: UploadFile = File(...)
+    file: UploadFile = File(...),
+    admin_user: dict = Depends(get_current_admin)
 ):
     try:
         # Safe filename

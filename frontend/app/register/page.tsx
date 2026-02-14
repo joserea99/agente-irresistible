@@ -38,7 +38,8 @@ export default function RegisterPage() {
                     data: {
                         full_name: formData.full_name,
                         username: formData.username
-                    }
+                    },
+                    emailRedirectTo: `${window.location.origin}/dashboard` // Redirect back to dashboard after confirmation
                 }
             });
 

@@ -80,7 +80,7 @@ export const getDashboardConfig = (role: string = "member", t: any): DashboardCo
                 title: t.dashboard.qa.settingsTitle,
                 desc: t.dashboard.qa.settingsDesc,
                 icon: CheckCircle,
-                href: "/settings",
+                href: "/subscription",
                 color: "bg-slate-500/10 text-slate-500 border-slate-500/20",
             },
         ],

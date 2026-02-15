@@ -6,10 +6,7 @@ from ..services.stripe_service import stripe_service
 from ..services.auth_service import verify_token
 import os
 
-router = APIRouter(
-    prefix="/subscription",
-    tags=["subscription"]
-)
+router = APIRouter()
 
 class CheckoutRequest(BaseModel):
     return_url: str

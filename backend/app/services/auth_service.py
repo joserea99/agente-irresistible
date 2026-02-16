@@ -35,6 +35,10 @@ def verify_token(token: str) -> Tuple[Optional[dict], str]:
                 "full_name": user.user_metadata.get("full_name", "")
             }, "success"
 
+        # Inject email from auth user if missing in profile (important for Stripe)
+        if not profile.get("email") and user.email:
+            profile["email"] = user.email
+
         # Initialize trial if it's null (for existing users who didn't have this field)
         if not profile.get("trial_ends_at") and profile.get("subscription_status") == "trial":
             try:

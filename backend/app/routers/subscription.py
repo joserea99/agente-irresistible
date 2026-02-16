@@ -14,8 +14,18 @@ class CheckoutRequest(BaseModel):
 class PortalRequest(BaseModel):
     return_url: str
 
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+security = HTTPBearer()
+
+async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    token = credentials.credentials
+    profile, error = verify_token(token)
+    if error != "success" or not profile:
+        raise HTTPException(status_code=401, detail="Unauthorized: Invalid token")
+    return profile, error
+
 @router.post("/checkout")
-async def create_checkout_session(request: CheckoutRequest, token_data: tuple = Depends(verify_token)):
+async def create_checkout_session(request: CheckoutRequest, token_data: tuple = Depends(get_current_user)):
     """
     Creates a Stripe Checkout Session.
     """
@@ -41,7 +51,7 @@ async def create_checkout_session(request: CheckoutRequest, token_data: tuple = 
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/portal")
-async def create_portal_session(request: PortalRequest, token_data: tuple = Depends(verify_token)):
+async def create_portal_session(request: PortalRequest, token_data: tuple = Depends(get_current_user)):
     """
     Creates a Stripe Customer Portal Session.
     """

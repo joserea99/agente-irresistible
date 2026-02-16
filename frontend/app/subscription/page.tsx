@@ -10,10 +10,10 @@ import { useLanguage } from "@/lib/language-context";
 
 import { supabase } from "@/lib/supabase";
 
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 
-export default function SubscriptionPage() {
+function SubscriptionContent() {
     const { t } = useLanguage();
     const searchParams = useSearchParams();
     const success = searchParams.get("success");
@@ -169,5 +169,13 @@ export default function SubscriptionPage() {
                 </Card>
             </motion.div>
         </div>
+    );
+}
+
+export default function SubscriptionPage() {
+    return (
+        <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><p>Cargando...</p></div>}>
+            <SubscriptionContent />
+        </Suspense>
     );
 }

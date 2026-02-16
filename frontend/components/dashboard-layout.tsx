@@ -27,12 +27,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
             if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
                 if (session) {
-                    // Update store silently to keep token fresh
-                    useAuthStore.getState().login(session.access_token, {
-                        username: session.user.email || "",
-                        full_name: session.user.user_metadata.full_name || "",
-                        role: "member" // Role might need refetching if critical, but token is key
-                    });
+                    // Fetch latest profile to ensure role/subscription is up to date
+                    const fetchProfile = async () => {
+                        const { data: profile } = await supabase
+                            .from('profiles')
+                            .select('*')
+                            .eq('id', session.user.id)
+                            .single();
+
+                        useAuthStore.getState().login(session.access_token, {
+                            username: session.user.email || "",
+                            full_name: profile?.full_name || session.user.user_metadata.full_name || "",
+                            role: profile?.role || "member"
+                        });
+                    };
+                    fetchProfile();
                 }
             } else if (event === 'SIGNED_OUT') {
                 logout();
@@ -111,7 +120,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         <p className="text-xs text-muted-foreground truncate capitalize">{user.role}</p>
                     </div>
                 </div>
-                <Button variant="outline" className="w-full text-destructive border-destructive/20 hover:bg-destructive/10" onClick={() => { logout(); router.push("/login"); }}>
+                <Button variant="outline" className="w-full text-destructive border-destructive/20 hover:bg-destructive/10" onClick={async () => { await supabase.auth.signOut(); logout(); router.push("/login"); }}>
                     <LogOut className="h-4 w-4 mr-2" />
                     {t.common.logout}
                 </Button>

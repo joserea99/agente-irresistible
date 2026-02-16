@@ -8,26 +8,44 @@ import { CreditCard, Star, CheckCircle } from "lucide-react";
 import { motion } from "framer-motion";
 import { useLanguage } from "@/lib/language-context";
 
+import { supabase } from "@/lib/supabase";
+
+import { useEffect } from "react";
+import { useSearchParams } from "next/navigation";
+
 export default function SubscriptionPage() {
     const { t } = useLanguage();
+    const searchParams = useSearchParams();
+    const success = searchParams.get("success");
 
     const [error, setError] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const router = useRouter();
 
+    useEffect(() => {
+        if (success) {
+            // Force session refresh to get new role/subscription status
+            const refreshSession = async () => {
+                await supabase.auth.refreshSession();
+                setTimeout(() => {
+                    router.push("/dashboard");
+                }, 2000);
+            };
+            refreshSession();
+        }
+    }, [success, router]);
+
     const handleSubscribe = async () => {
         setIsLoading(true);
         setError("");
         try {
-            // Get token from storage or cookie (store typically has it)
-            // If we are here, middleware ensured we are logged in, but let's be safe
-            // We'll rely on axios interceptor in `api` from store or simple fetch with cookie
-
-            // Using fetch directly for simplicity with cookie or localStorage
-            // But let's try to use the `api` instance if possible, or build headers manually
-            const token = document.cookie.split('; ').find(row => row.startsWith('access_token='))?.split('=')[1];
+            // Get fresh token directly from Supabase client
+            const { data: { session } } = await supabase.auth.getSession();
+            const token = session?.access_token;
 
             if (!token) {
+                console.error("No active Supabase session found");
+                setError("No authentication token found. Please log in again.");
                 router.push("/login?redirect=/subscription");
                 return;
             }
@@ -45,23 +63,49 @@ export default function SubscriptionPage() {
 
             if (!response.ok) {
                 const data = await response.json();
-                throw new Error(data.detail || "Error initiating checkout");
+                let errorMessage = data.detail || "Error initiating checkout";
+                if (typeof errorMessage === 'object') {
+                    errorMessage = JSON.stringify(errorMessage);
+                }
+                throw new Error(errorMessage);
             }
 
             const data = await response.json();
             if (data.url) {
+                console.log("Redirecting to:", data.url);
                 window.location.href = data.url;
             } else {
                 throw new Error("No checkout URL returned");
             }
 
         } catch (err: any) {
-            console.error(err);
-            setError(err.message || "Something went wrong.");
+            console.error("Checkout Error:", err);
+            let displayError = err.message || "Something went wrong.";
+            if (displayError === "[object Object]") {
+                displayError = JSON.stringify(err);
+            }
+            setError(displayError);
         } finally {
             setIsLoading(false);
         }
     };
+
+    if (success) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-background relative overflow-hidden p-4">
+                <Card className="max-w-md w-full border-green-500/50 bg-green-500/10 shadow-2xl">
+                    <CardHeader className="text-center">
+                        <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
+                        <CardTitle className="text-2xl text-green-500">¡Pago Exitoso!</CardTitle>
+                        <CardDescription>Tu suscripción se ha activado.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="text-center">
+                        <p className="text-muted-foreground">Te estamos redirigiendo al panel de control...</p>
+                    </CardContent>
+                </Card>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-background relative overflow-hidden p-4">

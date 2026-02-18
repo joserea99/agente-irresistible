@@ -51,7 +51,7 @@ async def send_message(
     Send a message and get AI response, saving history to DB.
     """
     try:
-        user_id = current_user.get("sub") # Username/Email from token
+        user_id = current_user.get("id") # Username/Email from token
         session_id = request.session_id
         session_title = None
         
@@ -134,10 +134,10 @@ async def get_chat_history(
     """Get list of past chat sessions"""
     try:
         # Use token user_id if 'current' requested
-        target_user = current_user.get("sub") if user_id == "current" else user_id
+        target_user = current_user.get("id") if user_id == "current" else user_id
         
         # Security check: Users can only see their own history (unless admin - TODO)
-        if target_user != current_user.get("sub") and current_user.get("role") != "admin":
+        if target_user != current_user.get("id") and current_user.get("role") != "admin":
              raise HTTPException(status_code=403, detail="Access denied")
 
         sessions = history_service.get_user_sessions(target_user)

@@ -242,7 +242,9 @@ class DojoService:
         else:
             scenario = DOJO_SCENARIOS.get(scenario_id)
             if not scenario:
-                return "Error: Scenario not found"
+                # Fallback if no scenario found and no prompt provided
+                return "Error: Scenario not found and no custom context provided."
+                
             lang_data = scenario.get(language, scenario["es"])
             system_prompt = lang_data["system_prompt"]
         

@@ -110,6 +110,19 @@ def update_user_role(user_id: str, role: str):
     """Updates a user's role."""
     supabase_service.update_profile(user_id, {"role": role})
 
+def update_user_subscription(user_id: str, status: str):
+    """Updates a user's subscription status."""
+    data = {"subscription_status": status}
+    
+    # Logic for trial vs active
+    if status == "active":
+        data["trial_ends_at"] = None # Remove trial limit
+    elif status == "trial":
+        # Reset to 14 days from now if putting back to trial
+        data["trial_ends_at"] = (datetime.now() + timedelta(days=14)).isoformat()
+        
+    supabase_service.update_profile(user_id, data)
+
 # --- Backward Compatibility Stubs (to be removed after Frontend update) ---
 
 def verify_user(username, password, device_fingerprint="unknown"):

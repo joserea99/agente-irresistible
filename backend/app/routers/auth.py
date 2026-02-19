@@ -87,6 +87,23 @@ async def change_role(user_id: str, role_data: dict, admin: dict = Depends(verif
     # In case update_user_role is void, just return success if no exception
     return {"message": "Role updated"}
 
+@router.put("/users/{user_id}/subscription")
+async def change_subscription(user_id: str, sub_data: dict, admin: dict = Depends(verify_admin_role)):
+    """
+    Manually update subscription status (e.g., to grant free access).
+    """
+    new_status = sub_data.get("status")
+    valid_statuses = ["active", "trial", "past_due", "canceled", "incomplete"]
+    
+    if new_status not in valid_statuses:
+         raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of: {', '.join(valid_statuses)}")
+    
+    # Call service
+    from ..services.auth_service import update_user_subscription
+    update_user_subscription(user_id, new_status)
+    
+    return {"message": "Subscription updated"}
+
 
 # Migration Endpoint (Temporary)
 from fastapi import BackgroundTasks

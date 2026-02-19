@@ -62,6 +62,17 @@ export default function AdminPage() {
         }
     };
 
+    const handleSubscriptionChange = async (userId: string, newStatus: string) => {
+        try {
+            await api.put(`/auth/users/${userId}/subscription`, { status: newStatus });
+            // Optimistic update
+            setUsers(users.map(u => u.id === userId ? { ...u, subscription_status: newStatus } : u));
+        } catch (error) {
+            console.error("Failed to update subscription", error);
+            alert("Failed to update subscription status");
+        }
+    };
+
     const handleDeleteUser = async (userId: string) => {
         if (!confirm(`Are you sure you want to delete this user? This action cannot be undone.`)) return;
 
@@ -139,9 +150,21 @@ export default function AdminPage() {
                                                 </Select>
                                             </TableCell>
                                             <TableCell>
-                                                <Badge variant={u.subscription_status === 'active' ? 'default' : 'secondary'}>
-                                                    {u.subscription_status}
-                                                </Badge>
+                                                <Select
+                                                    value={u.subscription_status}
+                                                    onValueChange={(val) => handleSubscriptionChange(u.id, val)}
+                                                >
+                                                    <SelectTrigger className="w-[120px] h-8 text-xs">
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {["active", "trial", "past_due", "canceled"].map(status => (
+                                                            <SelectItem key={status} value={status}>
+                                                                {status.toUpperCase()}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
                                             </TableCell>
                                             <TableCell className="text-right">
                                                 {u.username !== user.username && (

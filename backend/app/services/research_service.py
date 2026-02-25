@@ -277,6 +277,11 @@ class ResearchService:
                 # 0. Check Cache First!
                 content = self.get_cached_content(asset['asset_id'])
                 
+                # BOMB-PROOF CACHE BYPASS: If cache is corrupted with old transcription errors, ignore it
+                if content and ("Error transcribing media" in content or "Extraction Failed" in content or "Transcription Failed" in content):
+                     print(f"♻️ CACHE CORRUPTED: Bypassing cache for {asset['name']}")
+                     content = None
+                
                 if content:
                     print(f"♻️ CACHE HIT: Reusing existing content for {asset['name']}")
                 else:

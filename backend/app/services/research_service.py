@@ -283,7 +283,7 @@ class ResearchService:
                     # 1. Transcribe if media (Cache Miss)
                     content = f"Asset: {asset['name']}\nType: {asset['type']}"
                     
-                    if asset['type'] in ['video', 'audio']:
+                    if asset['type'] in ['video', 'audio', 'document']:
                         # REFRESH URL: Stored URL might be expired signed URL
                         try:
                             fresh_details = self.bf_api.get_asset_details(asset['asset_id'])
@@ -298,17 +298,42 @@ class ResearchService:
                                  if asset['type'] == 'audio' and 'audio' in mimetype:
                                      fresh_url = att.get('url')
                                      break
+                                 if asset['type'] == 'document' and ('pdf' in mimetype or 'document' in mimetype or 'text' in mimetype):
+                                     fresh_url = att.get('url')
+                                     break
+                                     
+                            # Fallback to first attachment if type is document and no clear mimetype matched
+                            if not fresh_url and asset['type'] == 'document' and len(fresh_info['attachments']) > 0:
+                                fresh_url = fresh_info['attachments'][0].get('url')
                             
                             if fresh_url and fresh_url.startswith('http'):
                                 local_path = self.bf_api.download_attachment(fresh_url)
                                 if local_path:
-                                    transcript = self.media_service.transcribe_media(local_path, mime_type='video/mp4' if asset['type']=='video' else 'audio/mp3')
-                                    content += f"\n\n--- TRANSCRIPT ---\n{transcript}"
+                                    if asset['type'] in ['video', 'audio']:
+                                        transcript = self.media_service.transcribe_media(local_path, mime_type='video/mp4' if asset['type']=='video' else 'audio/mp3')
+                                        content += f"\n\n--- TRANSCRIPT ---\n{transcript}"
+                                    elif asset['type'] == 'document':
+                                        import pypdf
+                                        try:
+                                            reader = pypdf.PdfReader(local_path)
+                                            pdf_text = ""
+                                            for page in reader.pages:
+                                                extracted = page.extract_text()
+                                                if extracted:
+                                                    pdf_text += extracted + "\n"
+                                            if pdf_text.strip():
+                                                content += f"\n\n--- DOCUMENT TEXT ---\n{pdf_text}"
+                                            else:
+                                                content += "\n\n[Warning: Extracted PDF text was empty. Document might be an image/scan.]"
+                                        except Exception as e:
+                                            print(f"Error reading PDF {local_path}: {e}")
+                                            content += f"\n\n[PDF Extraction Failed: {e}]"
+                                    
                                     os.remove(local_path)
                         except Exception as e:
                             print(f"⚠️ Failed to refresh/download media {asset['asset_id']}: {e}")
                             # Don't fail the whole asset logic, just skip transcript
-                            content += f"\n\n[Transcription Failed: {e}]"
+                            content += f"\n\n[Extraction Failed: {e}]"
                 
                 # 2. Index to Chroma
                 # Source needs to be the clickable link

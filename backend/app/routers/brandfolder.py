@@ -75,24 +75,40 @@ async def ingest_assets(request: IngestRequest):
                 mime = att.get('mimetype', '')
                 url = att.get('url')
                 
-                if url and ('video' in mime or 'audio' in mime):
-                    print(f"🎙️ Found media asset: {info['name']} ({mime})")
+                if url and ('video' in mime or 'audio' in mime or 'pdf' in mime or 'document' in mime or 'text' in mime):
+                    print(f"🎙️ Found ingestible asset: {info['name']} ({mime})")
                     try:
                         # Download temporarily
                         temp_file = api.download_attachment(url)
                         if temp_file:
-                            # Transcribe
-                            transcript = media_service.transcribe_media(temp_file, mime_type=mime)
-                            
-                            # Append to content
-                            content += f"\n\n--- TRANSCRIPTION ---\n{transcript}\n---------------------"
+                            if 'video' in mime or 'audio' in mime:
+                                # Transcribe
+                                transcript = media_service.transcribe_media(temp_file, mime_type=mime)
+                                content += f"\n\n--- TRANSCRIPTION ---\n{transcript}\n---------------------"
+                            else:
+                                # PDF/Document Extraction
+                                import pypdf
+                                try:
+                                    reader = pypdf.PdfReader(temp_file)
+                                    pdf_text = ""
+                                    for page in reader.pages:
+                                        extracted = page.extract_text()
+                                        if extracted:
+                                            pdf_text += extracted + "\n"
+                                    if pdf_text.strip():
+                                        content += f"\n\n--- DOCUMENT TEXT ---\n{pdf_text}\n---------------------"
+                                    else:
+                                        content += "\n\n[Warning: Extracted PDF text was empty. Document might be an image/scan.]"
+                                except Exception as e:
+                                    print(f"Error reading PDF {temp_file}: {e}")
+                                    content += f"\n\n[PDF Extraction Failed: {e}]"
                             
                             # Clean up
                             import os
                             os.remove(temp_file)
-                            break # Only transcribe the first main media file per asset
+                            break # Only process the first main media/doc file per asset
                     except Exception as e:
-                        print(f"⚠️ Failed to process media for {info['name']}: {e}")
+                        print(f"⚠️ Failed to process media/doc for {info['name']}: {e}")
 
             # Use 'web_view_link' or attachment url as source
             source = f"https://brandfolder.com/workbench/{info['id']}" 

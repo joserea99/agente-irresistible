@@ -12,7 +12,7 @@ class MagicService:
         self.api_key = api_key or os.environ.get("GOOGLE_API_KEY")
         if self.api_key:
             self.client = genai.Client(api_key=self.api_key)
-            self.model = "gemini-2.0-flash"
+            self.model = "gemini-3.1-pro-preview"
         else:
             self.client = None
 

@@ -31,7 +31,7 @@ class AgentEngine:
         
         if self.api_key:
             self.client = genai.Client(api_key=self.api_key)
-            self.model_name = "gemini-2.0-flash"
+            self.model_name = "gemini-3.1-pro-preview"
             
             # Map tools for execution
             self.tools_map = {

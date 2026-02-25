@@ -12,7 +12,7 @@ class VectorStoreService:
         self.supabase = supabase_service.get_client()
         if GOOGLE_API_KEY:
             self.client = genai.Client(api_key=GOOGLE_API_KEY)
-            self.embedding_model = "text-embedding-004" # Updated model (no prefix for new SDK)
+            self.embedding_model = "gemini-embedding-001" # Updated model for new SDK
         else:
             self.client = None
 

@@ -121,7 +121,8 @@ def update_user_subscription(user_id: str, status: str):
         # Reset to 14 days from now if putting back to trial
         data["trial_ends_at"] = (datetime.now() + timedelta(days=14)).isoformat()
         
-    supabase_service.update_profile(user_id, data)
+    if not supabase_service.update_profile(user_id, data):
+        raise Exception("Failed to update user subscription in database. Ensure columns exist.")
 
 # --- Backward Compatibility Stubs (to be removed after Frontend update) ---
 

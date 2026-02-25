@@ -99,8 +99,11 @@ async def change_subscription(user_id: str, sub_data: dict, admin: dict = Depend
          raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of: {', '.join(valid_statuses)}")
     
     # Call service
-    from ..services.auth_service import update_user_subscription
-    update_user_subscription(user_id, new_status)
+    try:
+        from ..services.auth_service import update_user_subscription
+        update_user_subscription(user_id, new_status)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
     
     return {"message": "Subscription updated"}
 

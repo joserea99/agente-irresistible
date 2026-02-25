@@ -54,7 +54,7 @@ class MediaService:
             
             # Model Fallback Strategy
             models_to_try = [
-                "gemini-3.1-pro-preview",      # New standard, very fast
+                "gemini-2.5-flash",      # New standard, very fast
                 "gemini-1.5-flash",      # Good fallback
                 "gemini-1.5-pro",        # High quality fallback
             ]

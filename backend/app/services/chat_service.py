@@ -39,7 +39,7 @@ class ChatService:
         
         if self.api_key:
             self.client = genai.Client(api_key=self.api_key)
-            self.model_name = "gemini-3.1-pro-preview"
+            self.model_name = "gemini-2.5-flash"
         else:
             self.client = None
 

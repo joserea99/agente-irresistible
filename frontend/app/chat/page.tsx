@@ -34,6 +34,27 @@ export default function ChatPage() {
     const { user } = useAuthStore();
     const { t, language } = useLanguage();
 
+    // Mapping user roles to persona keys
+    useEffect(() => {
+        if (user && user.role) {
+            const ROLE_TO_PERSONA_MAP: Record<string, string> = {
+                "pastor_principal": "Pastor Principal",
+                "kids_director": "Niños (NextGen)",
+                "students_director": "Estudiantes",
+                "adults_director": "Adultos (Grupos)",
+                "media_director": "Media (Creativos)",
+                "service_director": "Programación de Servicio",
+                "operations_director": "Servicios Ministeriales",
+                "philosophy_director": "Filosofía y Modelo",
+                "be_rich_director": "Be Rich"
+            };
+            
+            if (ROLE_TO_PERSONA_MAP[user.role]) {
+                setSelectedDirector(ROLE_TO_PERSONA_MAP[user.role]);
+            }
+        }
+    }, [user]);
+
     // Voice Hooks
     const { isListening, startListening, stopListening, hasSupport: hasMicSupport } = useSpeechToText({
         onResult: (text) => setInput((prev) => prev + (prev && !prev.endsWith(' ') ? " " : "") + text),

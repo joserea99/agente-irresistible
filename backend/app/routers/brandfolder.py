@@ -1,9 +1,12 @@
+import logging
 from fastapi import APIRouter, HTTPException, Depends
 import fastapi
 from ..models.brandfolder import SearchRequest, IngestRequest
 from ..services.brandfolder_service import BrandfolderAPI
 from ..services.rag_service import RAGManager
 from ..services.chat_service import ChatService
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -50,7 +53,7 @@ async def ingest_assets(request: IngestRequest):
             # Optimize query using LLM (Spanish -> English + Synonyms)
             chat = ChatService()
             optimized_topic = chat.optimize_query(request.topic)
-            print(f"🧠 Optimized ingestion topic: {request.topic} -> {optimized_topic}")
+            logger.info(f"Optimized ingestion topic: {request.topic} -> {optimized_topic}")
             
             assets = api.search_assets(bf_id, optimized_topic)
         else:
@@ -76,7 +79,7 @@ async def ingest_assets(request: IngestRequest):
                 url = att.get('url')
                 
                 if url and ('video' in mime or 'audio' in mime or 'pdf' in mime or 'document' in mime or 'text' in mime):
-                    print(f"🎙️ Found ingestible asset: {info['name']} ({mime})")
+                    logger.info(f"Found ingestible asset: {info['name']} ({mime})")
                     try:
                         # Download temporarily
                         temp_file = api.download_attachment(url)
@@ -100,7 +103,7 @@ async def ingest_assets(request: IngestRequest):
                                     else:
                                         content += "\n\n[Warning: Extracted PDF text was empty. Document might be an image/scan.]"
                                 except Exception as e:
-                                    print(f"Error reading PDF {temp_file}: {e}")
+                                    logger.error(f"Error reading PDF {temp_file}: {e}")
                                     content += f"\n\n[PDF Extraction Failed: {e}]"
                             
                             # Clean up
@@ -108,7 +111,7 @@ async def ingest_assets(request: IngestRequest):
                             os.remove(temp_file)
                             break # Only process the first main media/doc file per asset
                     except Exception as e:
-                        print(f"⚠️ Failed to process media/doc for {info['name']}: {e}")
+                        logger.warning(f"Failed to process media/doc for {info['name']}: {e}")
 
             # Use 'web_view_link' or attachment url as source
             source = f"https://brandfolder.com/workbench/{info['id']}" 
@@ -136,7 +139,7 @@ async def get_stats():
         }
     except Exception as e:
         # If DB isn't initialized or other error, return 0
-        print(f"Stats error: {e}")
+        logger.error(f"Stats error: {e}")
         return {"document_count": 0, "recent_documents": []}
 
 
@@ -156,7 +159,7 @@ async def start_research(request: ResearchStartRequest):
         service = ResearchService()
         return service.create_session(request.username, request.query)
     except Exception as e:
-        print(f"❌ Research Start Error: {e}")
+        logger.error(f"Research Start Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/research/history")
@@ -180,7 +183,7 @@ async def get_research_session(session_id: str):
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ Session Status Error: {e}")
+        logger.error(f"Session Status Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/research/{session_id}/execute")

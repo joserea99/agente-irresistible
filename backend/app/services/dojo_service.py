@@ -9,6 +9,11 @@ from typing import List, Dict, Optional
 import os
 import json
 import re
+import logging
+
+from ..core.config import settings
+
+logger = logging.getLogger(__name__)
 
 # Dojo Scenarios
 DOJO_SCENARIOS = {
@@ -480,11 +485,11 @@ class DojoService:
     
     def __init__(self, api_key: Optional[str] = None):
         """Initialize the Dojo service with Gemini API"""
-        self.api_key = api_key or os.environ.get("GOOGLE_API_KEY")
-        
+        self.api_key = api_key or settings.google_api_key
+
         if self.api_key:
             self.client = genai.Client(api_key=self.api_key)
-            self.model_name = "gemini-2.5-flash"
+            self.model_name = settings.gemini_model
         else:
             self.client = None
 

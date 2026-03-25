@@ -1,10 +1,11 @@
 import os
+import logging
 from supabase import create_client, Client
 from typing import Optional, Dict, List
 
-# Load env inside the service to ensure they are loaded
-SUPABASE_URL = os.environ.get("SUPABASE_URL")
-SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+from ..core.config import settings
+
+logger = logging.getLogger(__name__)
 
 class SupabaseService:
     _instance = None
@@ -13,10 +14,10 @@ class SupabaseService:
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super(SupabaseService, cls).__new__(cls)
-            if not SUPABASE_URL or not SUPABASE_KEY:
-                print("⚠️ Supabase credentials missing. SupabaseService will fail.")
+            if not settings.supabase_url or not settings.supabase_service_role_key:
+                logger.warning("Supabase credentials missing. SupabaseService will fail.")
             else:
-                cls._instance.client = create_client(SUPABASE_URL, SUPABASE_KEY)
+                cls._instance.client = create_client(settings.supabase_url, settings.supabase_service_role_key)
         return cls._instance
 
     def get_client(self) -> Client:
@@ -31,7 +32,7 @@ class SupabaseService:
             response = self.client.table("profiles").select("*").eq("id", user_id).single().execute()
             return response.data
         except Exception as e:
-            print(f"Error fetching profile {user_id}: {e}")
+            logger.error(f"Error fetching profile {user_id}: {e}")
             return None
 
     def update_profile(self, user_id: str, data: Dict) -> bool:
@@ -41,7 +42,7 @@ class SupabaseService:
             self.client.table("profiles").update(data).eq("id", user_id).execute()
             return True
         except Exception as e:
-            print(f"Error updating profile {user_id}: {e}")
+            logger.error(f"Error updating profile {user_id}: {e}")
             return False
 
     # --- Chat History Methods ---
@@ -60,7 +61,7 @@ class SupabaseService:
                 return response.data[0]['id']
             return None
         except Exception as e:
-            print(f"Error creating session: {e}")
+            logger.error(f"Error creating session: {e}")
             return None
 
     def add_message(self, session_id: str, role: str, content: str) -> bool:
@@ -73,15 +74,15 @@ class SupabaseService:
                 "content": content
             }
             self.client.table("chat_messages").insert(data).execute()
-            
+
             # Update session timestamp
             self.client.table("chat_sessions").update({
                 "updated_at": "now()"
             }).eq("id", session_id).execute()
-            
+
             return True
         except Exception as e:
-            print(f"Error adding message: {e}")
+            logger.error(f"Error adding message: {e}")
             return False
 
     def get_user_sessions(self, user_id: str) -> List[Dict]:
@@ -95,7 +96,7 @@ class SupabaseService:
                 .execute()
             return response.data
         except Exception as e:
-            print(f"Error fetching sessions: {e}")
+            logger.error(f"Error fetching sessions: {e}")
             return []
 
     def get_session_messages(self, session_id: str) -> List[Dict]:
@@ -109,7 +110,7 @@ class SupabaseService:
                 .execute()
             return response.data
         except Exception as e:
-            print(f"Error fetching messages: {e}")
+            logger.error(f"Error fetching messages: {e}")
             return []
 
     # --- Storage Methods ---
@@ -125,7 +126,7 @@ class SupabaseService:
             )
             return self.get_public_url(bucket, path)
         except Exception as e:
-            print(f"Error uploading file to {bucket}/{path}: {e}")
+            logger.error(f"Error uploading file to {bucket}/{path}: {e}")
             return None
 
     def get_public_url(self, bucket: str, path: str) -> str:
@@ -134,7 +135,7 @@ class SupabaseService:
         try:
             return self.client.storage.from_(bucket).get_public_url(path)
         except Exception as e:
-            print(f"Error getting public URL: {e}")
+            logger.error(f"Error getting public URL: {e}")
             return ""
 
 # Singleton instance

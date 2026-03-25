@@ -1,17 +1,18 @@
-
 import stripe
 import os
+import logging
 from typing import Optional, Dict
+
+logger = logging.getLogger(__name__)
 
 # Initialize Stripe
 stripe.api_key = os.environ.get("STRIPE_SECRET_KEY")
-PRODUCT_PRICE_ID = "price_H5ggYJDqQq" # Placeholder, needs to be replaced with env var or real ID
 
 class StripeService:
     def __init__(self):
         self.api_key = stripe.api_key
         if not self.api_key:
-            print("⚠️ Warning: STRIPE_SECRET_KEY not set.")
+            logger.warning("STRIPE_SECRET_KEY not set.")
 
     def create_checkout_session(self, user_id: str, email: str, return_url: str) -> str:
         """
@@ -47,7 +48,7 @@ class StripeService:
             )
             return checkout_session.url
         except Exception as e:
-            print(f"Error creating checkout session: {e}")
+            logger.error(f"Error creating checkout session: {e}")
             raise e
 
     def create_portal_session(self, customer_id: str, return_url: str) -> str:
@@ -61,7 +62,7 @@ class StripeService:
             )
             return portal_session.url
         except Exception as e:
-            print(f"Error creating portal session: {e}")
+            logger.error(f"Error creating portal session: {e}")
             raise e
 
     def get_subscription_status(self, subscription_id: str) -> str:

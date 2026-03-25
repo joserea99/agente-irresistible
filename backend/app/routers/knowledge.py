@@ -1,4 +1,4 @@
-
+import logging
 from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks, Depends
 import shutil
 import os
@@ -7,9 +7,10 @@ from typing import List
 from pydantic import BaseModel
 import pypdf
 
-# Services
 from ..services.rag_service import RAGManager
 from ..services.media_service import MediaService
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -47,7 +48,7 @@ def process_and_index_file(file_path: str, filename: str, content_type: str):
         rag = RAGManager()
         text_content = ""
         
-        print(f"🔄 Processing file: {filename} ({content_type})")
+        logger.info(f"Processing file: {filename} ({content_type})")
         
         # 1. Extract Text (Keep existing logic for extraction)
         if content_type == "application/pdf" or filename.lower().endswith(".pdf"):
@@ -56,7 +57,7 @@ def process_and_index_file(file_path: str, filename: str, content_type: str):
                 for page in reader.pages:
                     text_content += page.extract_text() + "\n"
             except Exception as e:
-                print(f"❌ Error reading PDF {filename}: {e}")
+                logger.error(f"Error reading PDF {filename}: {e}")
                 return
                 
         elif content_type in ["text/plain", "text/markdown"] or filename.lower().endswith((".txt", ".md")):
@@ -67,18 +68,18 @@ def process_and_index_file(file_path: str, filename: str, content_type: str):
              # Use MediaService for transcription
              try:
                  media_service = MediaService()
-                 print(f"🎙️ Transcribing {filename}...")
+                 logger.info(f"Transcribing {filename}...")
                  transcript = media_service.transcribe_media(file_path, mime_type=content_type)
                  text_content = f"--- TRANSCRIPT OF {filename} ---\n{transcript}"
              except Exception as e:
-                 print(f"❌ Error transcribing {filename}: {e}")
+                 logger.error(f"Error transcribing {filename}: {e}")
                  return
         else:
-            print(f"⚠️ Unsupported file type for auto-indexing: {content_type}")
+            logger.warning(f"Unsupported file type for auto-indexing: {content_type}")
             return
 
         # 2. Upload to Supabase Storage (Archival)
-        print(f"☁️ Uploading {filename} to Supabase Storage...")
+        logger.info(f"Uploading {filename} to Supabase Storage...")
         public_url = ""
         try:
             with open(file_path, "rb") as f:
@@ -90,31 +91,31 @@ def process_and_index_file(file_path: str, filename: str, content_type: str):
             
             public_url = supabase_service.upload_file(bucket_name, storage_path, file_bytes, content_type)
             if public_url:
-                print(f"✅ Uploaded to: {public_url}")
+                logger.info(f"Uploaded to: {public_url}")
             else:
-                 print("⚠️ Upload failed, using filename as source.")
+                 logger.warning("Upload failed, using filename as source.")
                  public_url = f"file://{filename}"
                  
         except Exception as e:
-            print(f"❌ Error uploading to storage: {e}")
+            logger.error(f"Error uploading to storage: {e}")
             public_url = f"file://{filename}"
 
         # 3. Index to RAG using Cloud URL as Source
         if text_content.strip():
             if rag.add_document(text_content, public_url, title=filename):
-                print(f"✅ Successfully indexed {filename}")
+                logger.info(f"Successfully indexed {filename}")
             else:
-                print(f"⚠️ Skipped {filename} (Already exists or empty)")
+                logger.info(f"Skipped {filename} (Already exists or empty)")
         else:
-            print(f"⚠️ No text extracted from {filename}")
+            logger.warning(f"No text extracted from {filename}")
             
     except Exception as e:
-        print(f"❌ Critical Error processing {filename}: {e}")
+        logger.error(f"Critical Error processing {filename}: {e}")
     finally:
         # Clean up temp file
         if os.path.exists(file_path):
             os.remove(file_path)
-            print(f"🗑️ Removed temp file {file_path}")
+            logger.debug(f"Removed temp file {file_path}")
 
 @router.post("/upload", response_model=UploadResponse)
 async def upload_file(

@@ -4,9 +4,13 @@ from pydantic import BaseModel, Field
 from typing import List, Optional, Dict
 from ..services.chat_service import ChatService
 from ..services.chat_history_service import ChatHistoryService
+from ..services.rag_service import RAGManager
 from .auth import verify_active_user
 import os
+import logging
 from io import BytesIO
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -62,9 +66,9 @@ async def send_message(
             session_id = history_service.create_session(user_id, request.director, title)
             session_title = title
             if session_id:
-                print(f"🆕 Created new chat session: {session_id}")
+                logger.info(f"Created new chat session: {session_id}")
             else:
-                print("⚠️ Failed to create session. Chat will not be saved.")
+                logger.warning("Failed to create session. Chat will not be saved.")
         
         # 2. Save User Message
         history_service.add_message(session_id, "user", request.message)
@@ -75,11 +79,16 @@ async def send_message(
         history_dicts = [{"role": m["role"], "content": m["content"]} for m in db_messages]
         
         # 4. Generate Response
-        # Get RAG context if enabled (TODO: integrate RAG service)
+        # Get RAG context if enabled
         rag_context = None
         if request.rag_enabled:
-            # TODO: Implement RAG search
-            pass
+            try:
+                rag_manager = RAGManager()
+                rag_context = rag_manager.search(request.message, n_results=3)
+                if rag_context:
+                    logger.info(f"RAG context injected ({len(rag_context)} chars) for session {session_id}")
+            except Exception as rag_err:
+                logger.warning(f"RAG search failed, continuing without context: {rag_err}")
         
         response_text = chat_service.generate_response(
             user_input=request.message,

@@ -1,10 +1,12 @@
-
+import logging
 from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel
 from typing import Optional
 from ..services.stripe_service import stripe_service
 from ..services.auth_service import verify_token
 import os
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -122,14 +124,14 @@ async def handle_checkout_completed(session):
     customer_id = session.get("customer")
     
     if user_id and customer_id:
-        print(f"💰 Payment success for User {user_id}. Activating subscription.")
+        logger.info(f"Payment success for User {user_id}. Activating subscription.")
         try:
              supabase_service.update_profile(user_id, {
                  "stripe_customer_id": customer_id,
                  "subscription_status": "active"
              })
         except Exception as e:
-            print(f"Error updating profile after payment: {e}")
+            logger.error(f"Error updating profile after payment: {e}")
 
 async def handle_subscription_deleted(subscription):
     """
@@ -141,7 +143,7 @@ async def handle_subscription_deleted(subscription):
     customer_id = subscription.get("customer")
     
     if customer_id:
-        print(f"❌ Subscription deleted for Customer {customer_id}. Downgrading.")
+        logger.info(f"Subscription deleted for Customer {customer_id}. Downgrading.")
         try:
             # We assume we can query by stripe_customer_id. 
             # Since supabase_service might not have a find_by, we might need to add it or do a raw query via client
@@ -152,4 +154,4 @@ async def handle_subscription_deleted(subscription):
                         "subscription_status": "canceled"
                     })
         except Exception as e:
-            print(f"Error downgrading user: {e}")
+            logger.error(f"Error downgrading user: {e}")

@@ -7,11 +7,13 @@ from google import genai
 from google.genai import types
 from typing import List, Dict, Optional
 import os
+import logging
 
-# Import personas
 from .personas import PERSONAS
+from ..core.config import settings
 
-# Global imports for types/standard libs
+logger = logging.getLogger(__name__)
+
 import re
 from io import BytesIO
 
@@ -28,18 +30,18 @@ try:
     HAS_DOCX = True
 except ImportError:
     HAS_DOCX = False
-    print("⚠️ python-docx not installed. Export will fail or fallback.")
+    logger.warning("python-docx not installed. Export will fail or fallback.")
 
 class ChatService:
     """Service for handling AI chat conversations with Gemini"""
     
     def __init__(self, api_key: Optional[str] = None):
         """Initialize the chat service with Gemini API"""
-        self.api_key = api_key or os.environ.get("GOOGLE_API_KEY")
-        
+        self.api_key = api_key or settings.google_api_key
+
         if self.api_key:
             self.client = genai.Client(api_key=self.api_key)
-            self.model_name = "gemini-2.5-flash"
+            self.model_name = settings.gemini_model
         else:
             self.client = None
 
@@ -109,7 +111,7 @@ Use this context to provide more specific and accurate answers. If the context d
                 contents=contents,
                 config=types.GenerateContentConfig(
                     system_instruction=system_prompt,
-                    temperature=0.7,
+                    temperature=settings.gemini_temperature,
                 )
             )
             return response.text
@@ -229,8 +231,8 @@ Use this context to provide more specific and accurate answers. If the context d
                 contents=prompt
             )
             cleaned = response.text.strip().replace('"', '')
-            print(f"🔍 Optimized Query: '{query}' -> '{cleaned}'")
+            logger.info(f"Optimized Query: '{query}' -> '{cleaned}'")
             return cleaned
         except Exception as e:
-            print(f"❌ Error optimizing query: {e}")
+            logger.error(f"Error optimizing query: {e}")
             return query

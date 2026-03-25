@@ -37,7 +37,7 @@ class LoginRequest(BaseModel):
 
 @router.post("/login")
 async def login_stub(data: LoginRequest = None):
-    print("⚠️ Legacy /auth/login called. Returning dummy success to prevent 404.")
+    import logging; logging.getLogger(__name__).info("Legacy /auth/login called. Returning dummy success.")
     # Return a structure that satisfies old frontend if possible, or just 200 OK
     return {
         "access_token": "legacy_token_placeholder", 
@@ -136,14 +136,15 @@ async def migrate_force(background_tasks: BackgroundTasks, x_migration_secret: s
     Emergency endpoint to trigger migration via script/terminal.
     Bypasses auth token check, uses secret header instead.
     """
-    if x_migration_secret != "irresistible-migration-force-2026":
+    expected_secret = os.environ.get("MIGRATION_SECRET")
+    if not expected_secret or x_migration_secret != expected_secret:
         raise HTTPException(status_code=403, detail="Invalid migration secret")
-        
+
     try:
         # Import dynamically
         sys.path.append(os.path.join(os.path.dirname(__file__), "../.."))
         from migrate_chroma import migrate
-        
+
         background_tasks.add_task(migrate)
         return {"message": "Force Migration started. Check server logs for details."}
     except Exception as e:

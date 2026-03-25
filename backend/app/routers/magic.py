@@ -1,8 +1,10 @@
+import logging
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from ..services.magic_service import MagicService
-
 from ..services.rag_service import RAGManager
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 magic_service = MagicService()
@@ -26,7 +28,7 @@ async def generate_magic_content(request: MagicRequest):
     
     if not content:
         # Fallback: Maybe they passed the text directly? (Backward compatibility if needed, but let's stick to source for now)
-        print(f"❌ Content not found for source: {request.document_source}")
+        logger.warning(f"Content not found for source: {request.document_source}")
         raise HTTPException(status_code=404, detail=f"Document content not found. It may have been indexed without a valid API Key. Please re-upload.")
 
     result = ""

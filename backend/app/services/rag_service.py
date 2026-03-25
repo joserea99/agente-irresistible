@@ -1,5 +1,8 @@
+import logging
 from .vector_store import vector_store
-import os
+
+logger = logging.getLogger(__name__)
+
 
 class RAGManager:
     def __init__(self):
@@ -12,7 +15,7 @@ class RAGManager:
             res = self.supabase.table("documents").select("id").eq("source", source_url).execute()
             return len(res.data) > 0
         except Exception as e:
-            print(f"Error checking doc existence: {e}")
+            logger.error(f"Error checking doc existence: {e}")
             return False
 
     def add_document(self, content, source_url, title="Unknown"):
@@ -28,7 +31,7 @@ class RAGManager:
         try:
             res = self.supabase.table("documents").select("*", count="exact", head=True).execute()
             return res.count
-        except:
+        except Exception:
             return 0
 
     def get_recent_documents(self, limit=5):
@@ -37,33 +40,30 @@ class RAGManager:
             res = self.supabase.table("documents").select("*").order("created_at", desc=True).limit(limit).execute()
             return res.data
         except Exception as e:
-            print(f"Error fetching recent docs: {e}")
+            logger.error(f"Error fetching recent docs: {e}")
             return []
 
     def get_full_document(self, source_url):
         """Retrieves and stitches together all chunks for a given source."""
         try:
-            # 1. Get Document ID
             doc_res = self.supabase.table("documents").select("id").eq("source", source_url).single().execute()
             if not doc_res.data:
                 return None
-            
+
             doc_id = doc_res.data["id"]
-            
-            # 2. Get Chunks sorted by index
+
             chunks_res = self.supabase.table("document_chunks")\
                 .select("content")\
                 .eq("document_id", doc_id)\
                 .order("chunk_index")\
                 .execute()
-                
+
             if not chunks_res.data:
                 return None
-                
-            # 3. Join
+
             full_text = "".join([c["content"] for c in chunks_res.data])
             return full_text
-            
+
         except Exception as e:
-            print(f"Error retrieving full doc: {e}")
+            logger.error(f"Error retrieving full doc: {e}")
             return None

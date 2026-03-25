@@ -1,5 +1,8 @@
+import logging
 from typing import List, Dict, Optional
 from .supabase_service import supabase_service
+
+logger = logging.getLogger(__name__)
 
 class ChatHistoryService:
     def __init__(self):
@@ -28,7 +31,7 @@ class ChatHistoryService:
             try:
                 supabase_service.client.table("chat_sessions").update({"title": title}).eq("id", session_id).execute()
             except Exception as e:
-                print(f"Error updating title: {e}")
+                logger.error(f"Error updating title: {e}")
 
     def delete_session(self, session_id: str):
         """Deletes a session and its messages."""
@@ -37,4 +40,4 @@ class ChatHistoryService:
                 # Messages cascade delete automatically due to foreign key constraint
                 supabase_service.client.table("chat_sessions").delete().eq("id", session_id).execute()
             except Exception as e:
-                print(f"Error deleting session: {e}")
+                logger.error(f"Error deleting session: {e}")

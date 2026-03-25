@@ -1,36 +1,42 @@
 from google import genai
 from google.genai import types
 import os
+import logging
 from typing import Optional, List
+
+from ..core.config import settings
+
+logger = logging.getLogger(__name__)
+
 
 class MagicService:
     """
     Service to transform content into specific deliverables ("Magic Actions").
     """
-    
+
     def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key or os.environ.get("GOOGLE_API_KEY")
+        self.api_key = api_key or settings.google_api_key
         if self.api_key:
             self.client = genai.Client(api_key=self.api_key)
-            self.model = "gemini-2.5-flash"
+            self.model = settings.gemini_model
         else:
             self.client = None
 
     def _call_llm(self, prompt: str) -> str:
         if not self.client:
-            print("❌ GOOGLE_API_KEY not found in environment variables.")
-            return "Error: Gemini API Configuration Missing. Please check server logs and environment variables."
+            logger.error("GOOGLE_API_KEY not found in environment variables.")
+            return "Error: Gemini API Configuration Missing."
         try:
             response = self.client.models.generate_content(
                 model=self.model,
                 contents=prompt,
                 config=types.GenerateContentConfig(
-                    temperature=0.7,
+                    temperature=settings.gemini_temperature,
                 )
             )
             return response.text
         except Exception as e:
-            print(f"❌ Gemini Generation Error: {e}")
+            logger.error(f"Gemini Generation Error: {e}")
             return f"Error generating content: {str(e)}"
 
     def generate_small_group_guide(self, content: str, language: str = "en") -> str:

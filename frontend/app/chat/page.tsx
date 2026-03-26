@@ -38,6 +38,7 @@ export default function ChatPage() {
     useEffect(() => {
         if (user && user.role) {
             const ROLE_TO_PERSONA_MAP: Record<string, string> = {
+                "admin": "Pastor Principal",
                 "pastor_principal": "Pastor Principal",
                 "kids_director": "Niños (NextGen)",
                 "students_director": "Estudiantes",
@@ -190,7 +191,7 @@ export default function ChatPage() {
 
     return (
         <DashboardLayout>
-            <div className="flex h-[calc(100vh-8rem)] gap-4 items-stretch relative">
+            <div className="flex h-[calc(100vh-5rem)] md:h-[calc(100vh-8rem)] gap-0 md:gap-4 items-stretch relative">
                 {/* Mobile overlay backdrop */}
                 {showHistory && (
                     <div
@@ -201,12 +202,12 @@ export default function ChatPage() {
 
                 {/* History Sidebar - Overlay on mobile, static on desktop */}
                 <div className={`
-                    ${showHistory ? 'translate-x-0' : '-translate-x-full'}
-                    md:translate-x-0 md:relative md:flex
                     fixed top-0 left-0 h-full w-72 z-40
-                    md:w-64 md:z-auto md:h-auto md:top-auto md:left-auto
-                    shrink-0 flex-col transition-transform duration-200 ease-in-out
-                    ${showHistory ? 'flex' : 'md:flex hidden'}
+                    transition-transform duration-200 ease-in-out
+                    ${showHistory ? 'translate-x-0' : '-translate-x-full'}
+                    md:relative md:translate-x-0 md:w-64 md:z-auto md:h-auto md:top-auto md:left-auto md:shrink-0
+                    flex flex-col
+                    ${!showHistory ? 'max-md:pointer-events-none' : ''}
                 `}>
                     <ChatHistorySidebar
                         currentSessionId={currentSessionId}
@@ -218,42 +219,40 @@ export default function ChatPage() {
 
                 {/* Main Chat Area */}
                 <div className="flex-1 flex flex-col min-w-0">
-                    <div className="flex flex-col gap-3 mb-4">
-                        {/* Top row: history toggle + title + export */}
+                    <div className="flex flex-col gap-2 mb-2 md:mb-4">
+                        {/* Top row: history toggle + director selector + export */}
                         <div className="flex items-center gap-2">
-                            <Button variant="outline" size="icon" className="md:hidden shrink-0" onClick={() => setShowHistory(!showHistory)}>
+                            <Button variant="outline" size="icon" className="md:hidden shrink-0 h-9 w-9" onClick={() => setShowHistory(!showHistory)}>
                                 <Clock className="h-4 w-4" />
                             </Button>
-                            <h2 className="text-xl sm:text-3xl font-bold font-heading truncate flex-1">
-                                {directors.find(d => d.key === selectedDirector)?.name || "Agente Estratégico"}
-                            </h2>
+
+                            {/* Director selector inline on mobile */}
+                            <Select value={selectedDirector} onValueChange={setSelectedDirector}>
+                                <SelectTrigger className="flex-1 md:w-[280px] md:flex-none h-9">
+                                    <Users className="h-4 w-4 mr-2 shrink-0" />
+                                    <SelectValue placeholder="Selecciona un director" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {directors.map((director) => (
+                                        <SelectItem key={director.id} value={director.key}>
+                                            {director.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+
                             {messages.length > 0 && (
                                 <Button
                                     variant="outline"
                                     size="icon"
                                     onClick={handleExportConversation}
                                     title="Exportar a Word"
-                                    className="shrink-0"
+                                    className="shrink-0 h-9 w-9"
                                 >
                                     <FileDown className="h-4 w-4" />
                                 </Button>
                             )}
                         </div>
-
-                        {/* Director selector - full width on mobile */}
-                        <Select value={selectedDirector} onValueChange={setSelectedDirector}>
-                            <SelectTrigger className="w-full sm:w-[280px]">
-                                <Users className="h-4 w-4 mr-2" />
-                                <SelectValue placeholder="Selecciona un director" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {directors.map((director) => (
-                                    <SelectItem key={director.id} value={director.key}>
-                                        {director.name}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
                     </div>
 
                     <Card className="flex-1 flex flex-col overflow-hidden border-primary/20 bg-card/50 relative">
@@ -278,7 +277,7 @@ export default function ChatPage() {
                                             <div className={`h-8 w-8 rounded-full flex items-center justify-center shrink-0 ${m.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
                                                 {m.role === "user" ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
                                             </div>
-                                            <div className={`flex flex-col gap-2 max-w-[80%]`}>
+                                            <div className={`flex flex-col gap-2 max-w-[85%] sm:max-w-[80%]`}>
                                                 <div className={`rounded-lg px-4 py-3 text-sm ${m.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
                                                     <span className="whitespace-pre-wrap">{m.content}</span>
                                                 </div>

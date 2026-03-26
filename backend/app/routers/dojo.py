@@ -2,11 +2,18 @@
 Dojo Router - Leadership Simulation Endpoints
 """
 
+import logging
+import re
+
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import List, Optional
 from ..services.dojo_service import DojoService
+from ..services.supabase_service import supabase_service
+from .auth import verify_active_user
 import os
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -35,6 +42,11 @@ class EvaluateRequest(BaseModel):
 class CreateScenarioRequest(BaseModel):
     description: str
     language: str = "es"
+
+class CompleteRequest(BaseModel):
+    scenario_id: str
+    scenario_name: str
+    score: int = 0
 
 # Initialize Dojo service
 def get_dojo_service():
@@ -135,3 +147,38 @@ async def evaluate_performance(
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error generating evaluation: {str(e)}")
+
+
+@router.post("/complete")
+async def save_completion(
+    request: CompleteRequest,
+    current_user: dict = Depends(verify_active_user)
+):
+    """Save a completed dojo scenario for the current user"""
+    user_id = current_user.get("id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="User ID not found")
+
+    success = supabase_service.save_dojo_completion(
+        user_id=user_id,
+        scenario_id=request.scenario_id,
+        scenario_name=request.scenario_name,
+        score=request.score
+    )
+
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to save completion")
+
+    logger.info(f"Dojo completion saved: user={user_id}, scenario={request.scenario_id}, score={request.score}")
+    return {"status": "saved"}
+
+
+@router.get("/progress")
+async def get_progress(current_user: dict = Depends(verify_active_user)):
+    """Get dojo progress for the current user"""
+    user_id = current_user.get("id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="User ID not found")
+
+    completions = supabase_service.get_dojo_progress(user_id)
+    return {"completions": completions}

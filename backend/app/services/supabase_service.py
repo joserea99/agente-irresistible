@@ -138,5 +138,37 @@ class SupabaseService:
             logger.error(f"Error getting public URL: {e}")
             return ""
 
+    # --- Dojo Progress Methods ---
+
+    def save_dojo_completion(self, user_id: str, scenario_id: str, scenario_name: str, score: int = 0) -> bool:
+        """Save a completed dojo scenario for a user"""
+        if not self.client: return False
+        try:
+            data = {
+                "user_id": user_id,
+                "scenario_id": scenario_id,
+                "scenario_name": scenario_name,
+                "score": score
+            }
+            self.client.table("dojo_completions").insert(data).execute()
+            return True
+        except Exception as e:
+            logger.error(f"Error saving dojo completion: {e}")
+            return False
+
+    def get_dojo_progress(self, user_id: str) -> List[Dict]:
+        """Get all completed dojo scenarios for a user"""
+        if not self.client: return []
+        try:
+            response = self.client.table("dojo_completions") \
+                .select("*") \
+                .eq("user_id", user_id) \
+                .order("completed_at", desc=True) \
+                .execute()
+            return response.data
+        except Exception as e:
+            logger.error(f"Error fetching dojo progress: {e}")
+            return []
+
 # Singleton instance
 supabase_service = SupabaseService()

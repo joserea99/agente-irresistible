@@ -225,6 +225,19 @@ export default function DojoPage() {
             });
             setEvaluation(res.data.evaluation);
             setIsPlaying(false);
+
+            // Save completion to backend (fire and forget)
+            try {
+                const scoreMatch = res.data.evaluation?.match(/(\d+)\s*\/\s*10/);
+                const score = scoreMatch ? parseInt(scoreMatch[1], 10) : 0;
+                await api.post("/dojo/complete", {
+                    scenario_id: selectedScenarioId,
+                    scenario_name: activeScenario?.name || selectedScenarioId,
+                    score
+                });
+            } catch (saveErr) {
+                console.error("Failed to save dojo completion", saveErr);
+            }
         } catch (err) {
             console.error("Evaluation failed", err);
         } finally {

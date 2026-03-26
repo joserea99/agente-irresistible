@@ -39,7 +39,7 @@ export default function VerifyDevicePage() {
 
             // Give user time to see success message before redirecting
             setTimeout(() => {
-                router.push("/dashboard");
+                router.push("/chat");
             }, 1500);
         } else {
             setStatus({ type: 'error', text: "Código inválido. Por favor intenta de nuevo." });

@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { useLanguage } from "@/lib/language-context";
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Sidebar, LayoutDashboard, MessageSquare, Database, LogOut, ChevronRight, Menu, Globe, Swords, ShieldAlert } from "lucide-react";
+import { Sidebar, LayoutDashboard, MessageSquare, LogOut, ChevronRight, Menu, Globe, Swords, ShieldAlert } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -66,9 +66,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const links = [
         { href: "/dashboard", label: t.dashboard.overview, icon: LayoutDashboard },
         { href: "/chat", label: t.dashboard.strategicAgent, icon: MessageSquare },
-        { href: "/knowledge", label: t.dashboard.knowledgeBase, icon: Database },
-        { href: "/dojo", label: t.dojo.title, icon: Swords }, // Leadership Dojo
-        ...(user.role === 'admin' ? [{ href: "/admin", label: "Admin Console", icon: ShieldAlert }] : []),
+        { href: "/dojo", label: t.dojo.title, icon: Swords },
+        ...(user.role === 'admin' ? [
+            { href: "/admin", label: "Admin Console", icon: ShieldAlert },
+        ] : []),
     ];
 
     const SidebarContent = () => (
@@ -77,7 +78,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <h1 className="text-xl font-bold font-heading text-primary bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent">
                     Irresistible
                 </h1>
-                <p className="text-xs text-muted-foreground">{t.common.appTagline}</p>
+                <p className="text-xs text-muted-foreground">Strategic Church AI</p>
             </div>
             <div className="flex-1 py-6 px-3 space-y-1">
                 {links.map((link) => (

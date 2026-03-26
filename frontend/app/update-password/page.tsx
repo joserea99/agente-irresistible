@@ -47,7 +47,7 @@ export default function UpdatePasswordPage() {
             
             // Redirect to dashboard or login after success
             setTimeout(() => {
-                router.push("/dashboard");
+                router.push("/chat");
             }, 2000);
             
         } catch (err: any) {

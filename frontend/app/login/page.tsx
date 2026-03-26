@@ -53,7 +53,7 @@ export default function LoginPage() {
                 login(data.session.access_token, userData);
                 Cookies.set('access_token', data.session.access_token, { expires: 1, path: '/' });
 
-                router.push("/dashboard");
+                router.push("/chat");
             }
         } catch (err: any) {
             console.error("Login Error:", err);
@@ -75,7 +75,16 @@ export default function LoginPage() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5 }}
+                className="flex flex-col items-center"
             >
+                {/* Branding */}
+                <div className="text-center mb-8">
+                    <h1 className="text-5xl font-bold font-heading bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent">
+                        Irresistible
+                    </h1>
+                    <p className="text-sm text-muted-foreground mt-2">Church Network AI</p>
+                </div>
+
                 <Card className="w-[400px] border-sidebar-border bg-card/50 backdrop-blur-xl shadow-2xl">
                     <CardHeader className="text-center">
                         <CardTitle className="text-2xl font-bold font-heading text-primary">{t.auth.signInTitle}</CardTitle>

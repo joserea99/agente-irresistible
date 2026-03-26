@@ -1,69 +1,76 @@
 "use client";
 
 import DashboardLayout from "@/components/dashboard-layout";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { ArrowRight, Clock, CheckCircle, Library, BookOpen, MessageSquare, Play, Sparkles, TrendingUp, Users } from "lucide-react";
-import { MagicMenu } from "@/components/magic-menu";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ArrowRight, MessageSquare, Swords, CheckCircle, Trophy, Clock, Bot } from "lucide-react";
 import { motion } from "framer-motion";
 import { useLanguage } from "@/lib/language-context";
 import { Button } from "@/components/ui/button";
 import { useAuthStore, api } from "@/lib/store";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { getDashboardConfig, DashboardConfig } from "@/lib/dashboard-config";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"; // For Role Switcher
+import { getDashboardConfig } from "@/lib/dashboard-config";
+import { formatDistanceToNow } from "date-fns";
+import { es, enUS } from "date-fns/locale";
+
+interface ChatSession {
+    id: string;
+    title: string;
+    director: string;
+    updated_at: string;
+}
+
+interface DojoCompletion {
+    id: string;
+    scenario_id: string;
+    scenario_name: string;
+    score: number;
+    completed_at: string;
+}
 
 export default function DashboardPage() {
-    const { t } = useLanguage();
+    const { t, language } = useLanguage();
     const { user } = useAuthStore();
-    const [knowledgeCount, setKnowledgeCount] = useState<string>("Loading...");
-    const [recentDocs, setRecentDocs] = useState<any[]>([]);
 
-    // Role Switcher State (for testing)
-    const [previewRole, setPreviewRole] = useState<string>(user?.role || "member");
+    const [recentChats, setRecentChats] = useState<ChatSession[]>([]);
+    const [dojoProgress, setDojoProgress] = useState<DojoCompletion[]>([]);
+    const [isLoadingChats, setIsLoadingChats] = useState(true);
+    const [isLoadingDojo, setIsLoadingDojo] = useState(true);
 
-    // Get config based on previewRole directly
-    const config = getDashboardConfig(previewRole, t);
-
-    useEffect(() => {
-        if (user?.role) {
-            setPreviewRole(user.role);
-        }
-    }, [user?.role]);
+    const config = getDashboardConfig(user?.role || "member", t);
+    const dateLocale = language === 'es' ? es : enUS;
 
     useEffect(() => {
-        const fetchStats = async () => {
+        const fetchChats = async () => {
             try {
-                const response = await api.get("/brandfolder/stats");
-                // Format with commas
-                const count = response.data.document_count;
-                setKnowledgeCount(count.toLocaleString());
-
-                // Get recent docs if available (fallback to empty array)
-                if (response.data.recent_documents) {
-                    setRecentDocs(response.data.recent_documents);
-                }
-            } catch (error) {
-                console.error("Failed to fetch stats", error);
-                setKnowledgeCount("0");
+                const res = await api.get("/chat/history/current");
+                setRecentChats((res.data || []).slice(0, 5));
+            } catch (err) {
+                console.error("Failed to fetch chat history", err);
+            } finally {
+                setIsLoadingChats(false);
             }
         };
 
-        fetchStats();
-    }, []);
+        const fetchDojo = async () => {
+            try {
+                const res = await api.get("/dojo/progress");
+                setDojoProgress((res.data.completions || []).slice(0, 5));
+            } catch (err) {
+                console.error("Failed to fetch dojo progress", err);
+            } finally {
+                setIsLoadingDojo(false);
+            }
+        };
 
-    // Merge dynamic data into config stats
-    const stats = config.stats.map(stat => {
-        if (stat.label === t.dashboard.knowledgeBase || stat.label === "Brand Assets") {
-            return { ...stat, value: knowledgeCount };
-        }
-        return stat;
-    });
+        fetchChats();
+        fetchDojo();
+    }, []);
 
     return (
         <DashboardLayout>
             <div className="space-y-8">
-                {/* Header Section */}
+                {/* Header */}
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div>
                         <div className="flex items-center gap-3">
@@ -71,193 +78,222 @@ export default function DashboardPage() {
                                 {config.greeting(user?.full_name || "Leader")}
                             </h2>
                             {user?.role && (
-                                <span className={`px-2 py-0.5 rounded text-xs font-mono uppercase border bg-slate-500/20 text-slate-400 border-slate-500/30`}>
-                                    {user.role}
+                                <span className="px-2 py-0.5 rounded text-xs font-mono uppercase border bg-slate-500/20 text-slate-400 border-slate-500/30">
+                                    {user.role.replace(/_/g, ' ')}
                                 </span>
                             )}
                         </div>
-                        <p className="text-muted-foreground">{t.dashboard.readyToProcess || "Your strategic intelligence hub is ready."}</p>
+                        <p className="text-muted-foreground mt-1">
+                            {language === 'es' ? 'Tu centro de inteligencia estratégica.' : 'Your strategic intelligence hub.'}
+                        </p>
                     </div>
-
-                    <div className="flex gap-2 items-center">
-                        {/* Role Switcher for Demo */}
-                        <div className="hidden md:block w-[180px]">
-                            <Select value={previewRole} onValueChange={setPreviewRole}>
-                                <SelectTrigger className="h-9 text-xs">
-                                    <SelectValue placeholder={t.dashboard.previewRole} />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="pastor_principal">{t.dashboard.pastorPrincipal}</SelectItem>
-                                    <SelectItem value="kids_director">{t.dashboard.kidsNextGen}</SelectItem>
-                                    <SelectItem value="media_director">{t.dashboard.mediaDirector}</SelectItem>
-                                    <SelectItem value="member">{t.dashboard.member}</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        <Link href="/chat">
-                            <Button>{t.dashboard.newSession} <ArrowRight className="ml-2 h-4 w-4" /></Button>
-                        </Link>
-                    </div>
+                    <Link href="/chat">
+                        <Button>{language === 'es' ? 'Nueva Conversación' : 'New Conversation'} <ArrowRight className="ml-2 h-4 w-4" /></Button>
+                    </Link>
                 </div>
 
-                {/* Stats Grid */}
-                <div className="grid gap-4 md:grid-cols-3">
-                    {stats.map((stat, i) => (
+                {/* Quick Actions */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Link href="/chat">
                         <motion.div
-                            key={stat.label}
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: i * 0.1 }}
+                            transition={{ delay: 0 }}
                         >
-                            <Card className="hover:shadow-md transition-all">
-                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                    <CardTitle className="text-sm font-medium">
-                                        {stat.label}
-                                    </CardTitle>
-                                    <stat.icon className={`h-4 w-4 ${stat.color}`} />
+                            <Card className="hover:shadow-md hover:border-primary/50 transition-all cursor-pointer h-full">
+                                <CardHeader className="flex flex-row items-center gap-4 pb-2">
+                                    <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
+                                        <MessageSquare className="h-6 w-6 text-primary" />
+                                    </div>
+                                    <div>
+                                        <CardTitle className="text-base">{language === 'es' ? 'Agente Estratégico' : 'Strategic Agent'}</CardTitle>
+                                        <CardDescription>{language === 'es' ? 'Conversa con tu consultor de IA' : 'Chat with your AI consultant'}</CardDescription>
+                                    </div>
                                 </CardHeader>
-                                <CardContent>
-                                    <div className="text-2xl font-bold">{stat.value}</div>
-                                    <p className="text-xs text-muted-foreground">{stat.desc}</p>
-                                </CardContent>
                             </Card>
                         </motion.div>
-                    ))}
-                </div>
-
-                {/* Main Content Grid */}
-                <div className="grid gap-6 md:grid-cols-7">
-
-                    {/* Left Column: Quick Actions & Recent Docs (4 cols) */}
-                    <div className="md:col-span-4 space-y-6">
-
-                        {/* Quick Actions */}
-                        <div>
-                            <h3 className="text-lg font-semibold mb-3">{t.dashboard.quickActionsTitle}</h3>
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                {config.quickActions.map((action) => (
-                                    <Link href={action.href} key={action.title}>
-                                        <div className={`p-3 sm:p-4 rounded-xl border ${action.color} hover:bg-opacity-20 transition-all cursor-pointer h-full flex flex-row sm:flex-col items-center sm:items-start gap-4 sm:gap-0 justify-start sm:justify-between min-h-[64px]`}> {/* Adapted for mobile list view */}
-                                            <action.icon className="h-5 w-5 sm:h-6 sm:w-6 sm:mb-2" />
-                                            <div>
-                                                <div className="font-bold text-sm">{action.title}</div>
-                                                <div className="text-xs opacity-70 line-clamp-1">{action.desc}</div>
-                                            </div>
-                                        </div>
-                                    </Link>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Recent Knowledge */}
-                        <Card className="border-primary/10">
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                    <Library className="h-5 w-5 text-blue-500" />
-                                    {t.dashboard.recentKnowledge}
-                                </CardTitle>
-                                <CardDescription>{t.dashboard.recentDescription}</CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="space-y-4">
-                                    {recentDocs.length > 0 ? (
-                                        recentDocs.map((doc, i) => (
-                                            <div key={i} className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors border border-transparent hover:border-border group justify-between">
-                                                <div className="flex items-center gap-3 flex-1 overflow-hidden">
-                                                    <div className="h-8 w-8 rounded bg-blue-500/10 flex items-center justify-center shrink-0">
-                                                        <Clock className="h-4 w-4 text-blue-500" />
-                                                    </div>
-                                                    <div className="overflow-hidden min-w-0">
-                                                        <p className="text-sm font-medium truncate">{doc.title || "Untitled Asset"}</p>
-                                                        <a href={doc.source} target="_blank" className="text-xs text-muted-foreground hover:text-primary hover:underline truncate block">
-                                                            {doc.source || "No source link"}
-                                                        </a>
-                                                    </div>
-                                                </div>
-                                                <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <MagicMenu source={doc.source} title={doc.title} />
-                                                </div>
-                                            </div>
-                                        ))
-                                    ) : (
-                                        <div className="text-center py-8 text-muted-foreground">
-                                            <p>{t.dashboard.noRecentDocs}</p>
-                                            <Link href="/knowledge">
-                                                <Button variant="link" className="text-xs">{t.dashboard.goToIngest}</Button>
-                                            </Link>
-                                        </div>
-                                    )}
-                                </div>
-                            </CardContent>
-                            <CardFooter>
-                                <Link href="/knowledge" className="w-full">
-                                    <Button variant="outline" className="w-full text-xs">{t.dashboard.viewKnowledge}</Button>
-                                </Link>
-                            </CardFooter>
-                        </Card>
-                    </div>
-
-                    {/* Right Column: System Status & Directors (3 cols) */}
-                    <div className="md:col-span-3 space-y-6">
-                        {/* Directors Status */}
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>{t.dashboard.activeDirectors}</CardTitle>
-                                <CardDescription>{t.dashboard.directorsDesc}</CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="space-y-4">
-                                    {[
-                                        { name: t.dashboard.pastorPrincipal, role: t.dashboard.visionStrategy, status: t.dashboard.status.online, color: "bg-green-500" },
-                                        { name: t.dashboard.serviceProgramming, role: t.dashboard.services, status: t.dashboard.status.busy, color: "bg-yellow-500" },
-                                        { name: t.dashboard.kidsNextGen, role: t.dashboard.familyMinistry, status: t.dashboard.status.online, color: "bg-green-500" },
-                                        { name: t.dashboard.mediaDirector, role: t.dashboard.creative, status: t.dashboard.status.online, color: "bg-pink-500" },
-                                    ].map((director) => (
-                                        <div key={director.name} className="flex items-center justify-between">
-                                            <div className="flex items-center gap-3">
-                                                <div className="h-2 w-2 rounded-full bg-slate-200 dark:bg-slate-700" />
-                                                <div>
-                                                    <p className="text-sm font-medium">{director.name}</p>
-                                                    <p className="text-xs text-muted-foreground">{director.role}</p>
-                                                </div>
-                                            </div>
-                                            <div className={`px-2 py-0.5 rounded-full text-[10px] bg-opacity-10 ${director.color.replace('bg-', 'text-')} flex items-center gap-1`}>
-                                                <div className={`h-1.5 w-1.5 rounded-full ${director.color}`} />
-                                                {director.status}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </CardContent>
-                        </Card>
-
-                        {/* System Status Updated - Only for Admin */}
-                        {user?.role === 'admin' && (
-                            <Card className="bg-muted/30 border-none shadow-none">
-                                <CardHeader className="pb-2">
-                                    <CardTitle className="text-sm text-muted-foreground">{t.dashboard.systemHealth}</CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="flex flex-col">
-                                            <span className="text-xs text-muted-foreground">{t.dashboard.backend}</span>
-                                            <span className="text-sm font-medium text-green-600 flex items-center gap-1">
-                                                <CheckCircle className="h-3 w-3" /> {t.dashboard.operational}
-                                            </span>
-                                        </div>
-                                        <div className="flex flex-col">
-                                            <span className="text-xs text-muted-foreground">{t.dashboard.database}</span>
-                                            <span className="text-sm font-medium text-green-600 flex items-center gap-1">
-                                                <CheckCircle className="h-3 w-3" /> {t.dashboard.connected}
-                                            </span>
-                                        </div>
+                    </Link>
+                    <Link href="/dojo">
+                        <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.1 }}
+                        >
+                            <Card className="hover:shadow-md hover:border-primary/50 transition-all cursor-pointer h-full">
+                                <CardHeader className="flex flex-row items-center gap-4 pb-2">
+                                    <div className="h-12 w-12 rounded-xl bg-amber-500/10 flex items-center justify-center">
+                                        <Swords className="h-6 w-6 text-amber-500" />
                                     </div>
-                                </CardContent>
+                                    <div>
+                                        <CardTitle className="text-base">{language === 'es' ? 'Leadership Dojo' : 'Leadership Dojo'}</CardTitle>
+                                        <CardDescription>{language === 'es' ? 'Entrena tus habilidades de liderazgo' : 'Train your leadership skills'}</CardDescription>
+                                    </div>
+                                </CardHeader>
                             </Card>
-                        )}
-                    </div>
+                        </motion.div>
+                    </Link>
                 </div>
+
+                {/* Content Grid */}
+                <div className="grid gap-6 md:grid-cols-2">
+
+                    {/* Recent Conversations */}
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.2 }}
+                    >
+                        <Card className="h-full">
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2 text-base">
+                                    <MessageSquare className="h-5 w-5 text-primary" />
+                                    {language === 'es' ? 'Conversaciones Recientes' : 'Recent Conversations'}
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                {isLoadingChats ? (
+                                    <div className="space-y-3">
+                                        {[1, 2, 3].map(i => (
+                                            <div key={i} className="h-12 rounded-lg bg-muted/50 animate-pulse" />
+                                        ))}
+                                    </div>
+                                ) : recentChats.length > 0 ? (
+                                    <div className="space-y-2">
+                                        {recentChats.map((session) => (
+                                            <Link key={session.id} href={`/chat?session=${session.id}`}>
+                                                <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer group">
+                                                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                                                        <Bot className="h-4 w-4 text-primary" />
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-sm font-medium truncate">{session.title}</p>
+                                                        <div className="flex items-center gap-2">
+                                                            {session.director && (
+                                                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground capitalize">
+                                                                    {session.director.replace(/_/g, ' ')}
+                                                                </span>
+                                                            )}
+                                                            <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                                                <Clock className="h-3 w-3" />
+                                                                {formatDistanceToNow(new Date(session.updated_at), { addSuffix: true, locale: dateLocale })}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                    <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                </div>
+                                            </Link>
+                                        ))}
+                                        <Link href="/chat" className="block mt-2">
+                                            <Button variant="ghost" className="w-full text-xs text-muted-foreground">
+                                                {language === 'es' ? 'Ver todas las conversaciones' : 'View all conversations'} <ArrowRight className="ml-1 h-3 w-3" />
+                                            </Button>
+                                        </Link>
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-8 text-muted-foreground">
+                                        <Bot className="h-10 w-10 mx-auto mb-2 opacity-20" />
+                                        <p className="text-sm">{language === 'es' ? 'No hay conversaciones aún' : 'No conversations yet'}</p>
+                                        <Link href="/chat">
+                                            <Button variant="link" className="text-xs mt-1">
+                                                {language === 'es' ? 'Iniciar primera conversación' : 'Start first conversation'}
+                                            </Button>
+                                        </Link>
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+                    </motion.div>
+
+                    {/* Dojo Progress */}
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.3 }}
+                    >
+                        <Card className="h-full">
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2 text-base">
+                                    <Trophy className="h-5 w-5 text-amber-500" />
+                                    {language === 'es' ? 'Progreso del Dojo' : 'Dojo Progress'}
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                {isLoadingDojo ? (
+                                    <div className="space-y-3">
+                                        {[1, 2, 3].map(i => (
+                                            <div key={i} className="h-12 rounded-lg bg-muted/50 animate-pulse" />
+                                        ))}
+                                    </div>
+                                ) : dojoProgress.length > 0 ? (
+                                    <div className="space-y-2">
+                                        {dojoProgress.map((item) => (
+                                            <div key={item.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/30">
+                                                <div className="h-8 w-8 rounded-full bg-amber-500/10 flex items-center justify-center shrink-0">
+                                                    <CheckCircle className="h-4 w-4 text-amber-500" />
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-sm font-medium truncate">{item.scenario_name}</p>
+                                                    <span className="text-xs text-muted-foreground">
+                                                        {formatDistanceToNow(new Date(item.completed_at), { addSuffix: true, locale: dateLocale })}
+                                                    </span>
+                                                </div>
+                                                {item.score > 0 && (
+                                                    <span className={`text-sm font-bold px-2 py-0.5 rounded ${
+                                                        item.score >= 8 ? 'text-green-500 bg-green-500/10' :
+                                                        item.score >= 5 ? 'text-amber-500 bg-amber-500/10' :
+                                                        'text-red-500 bg-red-500/10'
+                                                    }`}>
+                                                        {item.score}/10
+                                                    </span>
+                                                )}
+                                            </div>
+                                        ))}
+                                        <Link href="/dojo" className="block mt-2">
+                                            <Button variant="ghost" className="w-full text-xs text-muted-foreground">
+                                                {language === 'es' ? 'Ir al Dojo' : 'Go to Dojo'} <ArrowRight className="ml-1 h-3 w-3" />
+                                            </Button>
+                                        </Link>
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-8 text-muted-foreground">
+                                        <Swords className="h-10 w-10 mx-auto mb-2 opacity-20" />
+                                        <p className="text-sm">{language === 'es' ? 'No has completado escenarios' : 'No completed scenarios'}</p>
+                                        <Link href="/dojo">
+                                            <Button variant="link" className="text-xs mt-1">
+                                                {language === 'es' ? 'Practicar tu primer escenario' : 'Practice your first scenario'}
+                                            </Button>
+                                        </Link>
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+                    </motion.div>
+                </div>
+
+                {/* System Health - Admin Only */}
+                {user?.role === 'admin' && (
+                    <Card className="bg-muted/30 border-none shadow-none">
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-sm text-muted-foreground">{t.dashboard.systemHealth}</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="flex flex-col">
+                                    <span className="text-xs text-muted-foreground">{t.dashboard.backend}</span>
+                                    <span className="text-sm font-medium text-green-600 flex items-center gap-1">
+                                        <CheckCircle className="h-3 w-3" /> {t.dashboard.operational}
+                                    </span>
+                                </div>
+                                <div className="flex flex-col">
+                                    <span className="text-xs text-muted-foreground">{t.dashboard.database}</span>
+                                    <span className="text-sm font-medium text-green-600 flex items-center gap-1">
+                                        <CheckCircle className="h-3 w-3" /> {t.dashboard.connected}
+                                    </span>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
             </div>
         </DashboardLayout>
     );

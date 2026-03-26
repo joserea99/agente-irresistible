@@ -28,7 +28,7 @@ export default function ChatPage() {
     const [directors, setDirectors] = useState<Director[]>([]);
     const [selectedDirector, setSelectedDirector] = useState<string>("Programación de Servicio");
     const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
-    const [showHistory, setShowHistory] = useState(true); // Toggle for desktop/mobile
+    const [showHistory, setShowHistory] = useState(false); // Start closed on mobile
 
     const scrollRef = useRef<HTMLDivElement>(null);
     const { user } = useAuthStore();
@@ -190,60 +190,70 @@ export default function ChatPage() {
 
     return (
         <DashboardLayout>
-            <div className="flex h-[calc(100vh-8rem)] gap-4 items-stretch">
-                {/* History Sidebar - Hidden on mobile by default */}
-                <div className={`${showHistory ? 'flex' : 'hidden'} md:flex w-full md:w-64 shrink-0 flex-col`}>
+            <div className="flex h-[calc(100vh-8rem)] gap-4 items-stretch relative">
+                {/* Mobile overlay backdrop */}
+                {showHistory && (
+                    <div
+                        className="fixed inset-0 bg-black/50 z-30 md:hidden"
+                        onClick={() => setShowHistory(false)}
+                    />
+                )}
+
+                {/* History Sidebar - Overlay on mobile, static on desktop */}
+                <div className={`
+                    ${showHistory ? 'translate-x-0' : '-translate-x-full'}
+                    md:translate-x-0 md:relative md:flex
+                    fixed top-0 left-0 h-full w-72 z-40
+                    md:w-64 md:z-auto md:h-auto md:top-auto md:left-auto
+                    shrink-0 flex-col transition-transform duration-200 ease-in-out
+                    ${showHistory ? 'flex' : 'md:flex hidden'}
+                `}>
                     <ChatHistorySidebar
                         currentSessionId={currentSessionId}
                         onSelectSession={handleSelectSession}
                         onNewChat={handleNewChat}
-                        className="rounded-lg border bg-card/50 shadow-sm h-full"
+                        className="rounded-lg border bg-card shadow-lg md:shadow-sm md:bg-card/50 h-full"
                     />
                 </div>
 
                 {/* Main Chat Area */}
                 <div className="flex-1 flex flex-col min-w-0">
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
-                        <div className="flex flex-col gap-2">
-                            <div className="flex items-center gap-2">
-                                <Button variant="outline" size="icon" className="md:hidden" onClick={() => setShowHistory(!showHistory)}>
-                                    <Clock className="h-4 w-4" />
-                                </Button>
-                                <h2 className="text-3xl font-bold font-heading">
-                                    {directors.find(d => d.key === selectedDirector)?.name || "Agente Estratégico"}
-                                </h2>
-                            </div>
-                            <p className="text-muted-foreground hidden sm:block">Consultoría estratégica especializada</p>
-                        </div>
-
-                        <div className="flex gap-2 items-center w-full sm:w-auto">
-                            <Select value={selectedDirector} onValueChange={setSelectedDirector}>
-                                <SelectTrigger className="w-full sm:w-[250px]">
-                                    <Users className="h-4 w-4 mr-2" />
-                                    <SelectValue placeholder="Selecciona un director" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {directors.map((director) => (
-                                        <SelectItem key={director.id} value={director.key}>
-                                            {director.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-
+                    <div className="flex flex-col gap-3 mb-4">
+                        {/* Top row: history toggle + title + export */}
+                        <div className="flex items-center gap-2">
+                            <Button variant="outline" size="icon" className="md:hidden shrink-0" onClick={() => setShowHistory(!showHistory)}>
+                                <Clock className="h-4 w-4" />
+                            </Button>
+                            <h2 className="text-xl sm:text-3xl font-bold font-heading truncate flex-1">
+                                {directors.find(d => d.key === selectedDirector)?.name || "Agente Estratégico"}
+                            </h2>
                             {messages.length > 0 && (
-                                <div className="flex gap-2">
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={handleExportConversation}
-                                        title="Exportar a Word"
-                                    >
-                                        <FileDown className="h-4 w-4" />
-                                    </Button>
-                                </div>
+                                <Button
+                                    variant="outline"
+                                    size="icon"
+                                    onClick={handleExportConversation}
+                                    title="Exportar a Word"
+                                    className="shrink-0"
+                                >
+                                    <FileDown className="h-4 w-4" />
+                                </Button>
                             )}
                         </div>
+
+                        {/* Director selector - full width on mobile */}
+                        <Select value={selectedDirector} onValueChange={setSelectedDirector}>
+                            <SelectTrigger className="w-full sm:w-[280px]">
+                                <Users className="h-4 w-4 mr-2" />
+                                <SelectValue placeholder="Selecciona un director" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {directors.map((director) => (
+                                    <SelectItem key={director.id} value={director.key}>
+                                        {director.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
 
                     <Card className="flex-1 flex flex-col overflow-hidden border-primary/20 bg-card/50 relative">
@@ -311,7 +321,7 @@ export default function ChatPage() {
                                 <Input
                                     value={input}
                                     onChange={(e) => setInput(e.target.value)}
-                                    placeholder="Escribe tu pregunta o desafío... (o usa el micrófono)"
+                                    placeholder="Escribe tu pregunta..."
                                     className="flex-1 bg-background"
                                     disabled={isLoading}
                                     autoFocus

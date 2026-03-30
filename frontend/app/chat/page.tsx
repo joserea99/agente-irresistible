@@ -1,7 +1,7 @@
 "use client";
 
 import DashboardLayout from "@/components/dashboard-layout";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -56,9 +56,13 @@ export default function ChatPage() {
         }
     }, [user]);
 
-    // Voice Hooks
+    // Voice Hooks — stabilize onResult with useCallback
+    const handleVoiceResult = useCallback((text: string) => {
+        setInput((prev) => prev + (prev && !prev.endsWith(' ') ? " " : "") + text);
+    }, []);
+
     const { isListening, startListening, stopListening, hasSupport: hasMicSupport } = useSpeechToText({
-        onResult: (text) => setInput((prev) => prev + (prev && !prev.endsWith(' ') ? " " : "") + text),
+        onResult: handleVoiceResult,
         language: language === 'es' ? 'es-ES' : 'en-US'
     });
 

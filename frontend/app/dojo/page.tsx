@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import DashboardLayout from "@/components/dashboard-layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -50,14 +50,27 @@ export default function DojoPage() {
 
     const scrollRef = useRef<HTMLDivElement>(null);
 
-    // Voice Hooks
+    // Voice Hooks — stabilize onResult with useCallback to prevent hook recreation
+    const handleVoiceResult = useCallback((text: string) => {
+        setInput((prev) => prev + (prev && !prev.endsWith(' ') ? " " : "") + text);
+    }, []);
+
     const { isListening, startListening, stopListening, hasSupport: hasMicSupport } = useSpeechToText({
-        onResult: (text) => setInput((prev) => prev + (prev && !prev.endsWith(' ') ? " " : "") + text),
+        onResult: handleVoiceResult,
         language: language === 'es' ? 'es-ES' : 'en-US'
     });
     const { speak, stop: stopSpeaking, isSpeaking } = useTextToSpeech();
 
     const lastSpokenIndex = useRef<number>(-1);
+    const isPlayingRef = useRef(isPlaying);
+
+    // Keep ref in sync with state
+    useEffect(() => {
+        isPlayingRef.current = isPlaying;
+    }, [isPlaying]);
+
+    // Detect mobile for longer post-speak delay
+    const isMobile = typeof window !== "undefined" && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
     // Auto-speak assistant messages
     useEffect(() => {
@@ -74,15 +87,20 @@ export default function DojoPage() {
                     lastMsg.content,
                     language === 'es' ? 'es-ES' : 'en-US',
                     () => {
-                        // Add a small delay before listening to avoid echo/self-recording
+                        // Guard: only restart mic if session is still active
+                        if (!isPlayingRef.current) return;
+                        // Longer delay on mobile to avoid echo/overlap
+                        const delay = isMobile ? 800 : 500;
                         setTimeout(() => {
-                            startListening();
-                        }, 500);
+                            if (isPlayingRef.current) {
+                                startListening();
+                            }
+                        }, delay);
                     }
                 );
             }
         }
-    }, [messages, isPlaying, language, speak, stopListening, startListening]);
+    }, [messages, isPlaying, language, speak, stopListening, startListening, isMobile]);
     // Removed the secondary useEffect that caused the race condition
 
     // Load Scenarios

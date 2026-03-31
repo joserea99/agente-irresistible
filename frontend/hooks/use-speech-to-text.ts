@@ -17,10 +17,16 @@ interface UseSpeechToTextProps {
 export function useSpeechToText({ onResult, language = "es-ES" }: UseSpeechToTextProps = {}) {
     const [isListening, setIsListening] = useState(false);
     const [transcript, setTranscript] = useState("");
+    const [hasSupport, setHasSupport] = useState(false); // Detect support on client only
     const recognitionRef = useRef<any>(null);
     const isIntentionallyListening = useRef(false);
     const isListeningRef = useRef(false); // Mirror state in ref to avoid race conditions
     const onResultRef = useRef(onResult); // Store callback in ref to keep recognition stable
+
+    // Detect browser support on client mount (avoids SSR hydration mismatch)
+    useEffect(() => {
+        setHasSupport(!!(window.SpeechRecognition || window.webkitSpeechRecognition));
+    }, []);
 
     // Keep the ref current without triggering recognition recreation
     useEffect(() => {
@@ -149,6 +155,6 @@ export function useSpeechToText({ onResult, language = "es-ES" }: UseSpeechToTex
         transcript,
         startListening,
         stopListening,
-        hasSupport: typeof window !== "undefined" && !!(window.SpeechRecognition || window.webkitSpeechRecognition)
+        hasSupport
     };
 }

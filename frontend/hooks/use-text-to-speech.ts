@@ -59,7 +59,7 @@ export function useTextToSpeech() {
     const isCancellingRef = useRef(false); // Guard against cancel triggering onerror
     const chunksQueueRef = useRef<string[]>([]);
     const currentOnEndRef = useRef<(() => void) | null>(null);
-    const currentLangRef = useRef("es-ES");
+    const currentLangRef = useRef("es-US");
 
     useEffect(() => {
         if (typeof window === "undefined" || !window.speechSynthesis) return;
@@ -146,7 +146,7 @@ export function useTextToSpeech() {
         window.speechSynthesis.speak(utterance);
     }, [findBestVoice]);
 
-    const speak = useCallback((text: string, language: string = "es-ES", onEnd?: () => void) => {
+    const speak = useCallback((text: string, language: string = "es-US", onEnd?: () => void) => {
         if (!text || typeof window === "undefined" || !window.speechSynthesis) return;
 
         // Cancel any ongoing speech with guard

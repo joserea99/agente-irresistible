@@ -49,15 +49,32 @@ export default function DojoPage() {
     const [isEvaluating, setIsEvaluating] = useState(false);
 
     const scrollRef = useRef<HTMLDivElement>(null);
+    const autoSendTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const inputRef = useRef(input); // Keep input in ref for auto-send
+
+    // Keep input ref in sync
+    useEffect(() => {
+        inputRef.current = input;
+    }, [input]);
 
     // Voice Hooks — stabilize onResult with useCallback to prevent hook recreation
     const handleVoiceResult = useCallback((text: string) => {
         setInput((prev) => prev + (prev && !prev.endsWith(' ') ? " " : "") + text);
+
+        // Auto-send: reset timer on each voice result, send after 2s of silence
+        if (autoSendTimerRef.current) clearTimeout(autoSendTimerRef.current);
+        autoSendTimerRef.current = setTimeout(() => {
+            if (inputRef.current.trim()) {
+                // Trigger form submit programmatically
+                const form = document.getElementById('dojo-chat-form') as HTMLFormElement;
+                if (form) form.requestSubmit();
+            }
+        }, 2000); // 2 seconds of silence → auto-send
     }, []);
 
     const { isListening, startListening, stopListening, hasSupport: hasMicSupport } = useSpeechToText({
         onResult: handleVoiceResult,
-        language: language === 'es' ? 'es-ES' : 'en-US'
+        language: language === 'es' ? 'es-US' : 'en-US'
     });
     const { speak, stop: stopSpeaking, isSpeaking } = useTextToSpeech();
 
@@ -85,7 +102,7 @@ export default function DojoPage() {
                 stopListening(); // Stop mic before speaking
                 speak(
                     lastMsg.content,
-                    language === 'es' ? 'es-ES' : 'en-US',
+                    language === 'es' ? 'es-US' : 'en-US',
                     () => {
                         // Guard: only restart mic if session is still active
                         if (!isPlayingRef.current) return;
@@ -205,6 +222,12 @@ export default function DojoPage() {
 
     const handleSend = async () => {
         if (!input.trim() || !selectedScenarioId) return;
+
+        // Clear auto-send timer to prevent double-send
+        if (autoSendTimerRef.current) {
+            clearTimeout(autoSendTimerRef.current);
+            autoSendTimerRef.current = null;
+        }
 
         stopListening(); // Stop mic while processing
         const userMsg = input;
@@ -434,7 +457,7 @@ export default function DojoPage() {
                                                             variant="ghost"
                                                             size="icon"
                                                             className="h-8 w-8 rounded-full shrink-0"
-                                                            onClick={() => isSpeaking ? stopSpeaking() : speak(msg.content, language === 'es' ? 'es-ES' : 'en-US')}
+                                                            onClick={() => isSpeaking ? stopSpeaking() : speak(msg.content, language === 'es' ? 'es-US' : 'en-US')}
                                                             title="Reproducir audio"
                                                         >
                                                             {isSpeaking ? <StopCircle className="h-4 w-4" /> : <Volume2 className="h-4 w-4 opacity-50 hover:opacity-100" />}
@@ -455,6 +478,7 @@ export default function DojoPage() {
                                     {/* Input Area */}
                                     <div className="p-4 bg-muted/30 border-t">
                                         <form
+                                            id="dojo-chat-form"
                                             onSubmit={(e) => { e.preventDefault(); handleSend(); }}
                                             className="flex gap-2"
                                         >

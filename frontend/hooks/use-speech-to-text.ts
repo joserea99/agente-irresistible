@@ -14,7 +14,7 @@ interface UseSpeechToTextProps {
     language?: string;
 }
 
-export function useSpeechToText({ onResult, language = "es-ES" }: UseSpeechToTextProps = {}) {
+export function useSpeechToText({ onResult, language = "es-US" }: UseSpeechToTextProps = {}) {
     const [isListening, setIsListening] = useState(false);
     const [transcript, setTranscript] = useState("");
     const [hasSupport, setHasSupport] = useState(false); // Detect support on client only

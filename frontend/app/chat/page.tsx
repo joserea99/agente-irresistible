@@ -63,7 +63,7 @@ export default function ChatPage() {
 
     const { isListening, startListening, stopListening, hasSupport: hasMicSupport } = useSpeechToText({
         onResult: handleVoiceResult,
-        language: language === 'es' ? 'es-ES' : 'en-US'
+        language: language === 'es' ? 'es-US' : 'en-US'
     });
 
     const { speak, stop: stopSpeaking, isSpeaking } = useTextToSpeech();
@@ -292,7 +292,7 @@ export default function ChatPage() {
                                                             variant="ghost"
                                                             size="sm"
                                                             className="h-6 w-6 p-0 rounded-full hover:bg-muted-foreground/10"
-                                                            onClick={() => isSpeaking ? stopSpeaking() : speak(m.content, language === 'es' ? 'es-ES' : 'en-US')}
+                                                            onClick={() => isSpeaking ? stopSpeaking() : speak(m.content, language === 'es' ? 'es-US' : 'en-US')}
                                                             title="Leer en voz alta"
                                                         >
                                                             {isSpeaking ? <StopCircle className="h-3 w-3" /> : <Volume2 className="h-3 w-3 opacity-50 hover:opacity-100" />}

@@ -54,6 +54,62 @@ class VectorStoreService:
             logger.error(f"Error embedding query: {e}")
             return []
 
+    @staticmethod
+    def _chunk_text(content: str, chunk_size: int = 1000, overlap: int = 100) -> List[str]:
+        """
+        Split text into overlapping chunks on natural boundaries (paragraphs,
+        then sentences) so chunks don't cut sentences mid-word. Falls back to
+        a hard character split only for oversized paragraphs.
+        """
+        import re
+
+        content = (content or "").strip()
+        if not content:
+            return []
+
+        # Break into paragraphs first, then sentences for oversized ones.
+        paragraphs = [p.strip() for p in re.split(r"\n\s*\n", content) if p.strip()]
+        units: List[str] = []
+        for para in paragraphs:
+            if len(para) <= chunk_size:
+                units.append(para)
+            else:
+                # Split big paragraphs by sentence boundaries
+                sentences = re.split(r"(?<=[.!?])\s+", para)
+                buf = ""
+                for s in sentences:
+                    if len(buf) + len(s) + 1 <= chunk_size:
+                        buf = f"{buf} {s}".strip()
+                    else:
+                        if buf:
+                            units.append(buf)
+                        # A single sentence longer than chunk_size: hard split
+                        while len(s) > chunk_size:
+                            units.append(s[:chunk_size])
+                            s = s[chunk_size:]
+                        buf = s
+                if buf:
+                    units.append(buf)
+
+        # Greedily pack units into chunks with overlap carried between them.
+        chunks: List[str] = []
+        current = ""
+        for unit in units:
+            if len(current) + len(unit) + 2 <= chunk_size:
+                current = f"{current}\n\n{unit}".strip()
+            else:
+                if current:
+                    chunks.append(current)
+                    # Carry the tail of the previous chunk as overlap for continuity
+                    tail = current[-overlap:] if overlap else ""
+                    current = f"{tail}\n\n{unit}".strip() if tail else unit
+                else:
+                    current = unit
+        if current:
+            chunks.append(current)
+
+        return chunks
+
     def store_document(self, content: str, source: str, title: str = None, metadata: Dict = None) -> bool:
         """
         Stores a document and its vectors in Supabase.
@@ -87,17 +143,8 @@ class VectorStoreService:
             logger.error(f"Error inserting document: {e}")
             return False
 
-        # 3. Chunking
-        chunk_size = 1000
-        overlap = 100
-        chunks = []
-
-        start = 0
-        while start < len(content):
-            end = start + chunk_size
-            chunk_text = content[start:end]
-            chunks.append(chunk_text)
-            start += (chunk_size - overlap)
+        # 3. Chunking (paragraph-aware: avoid cutting sentences mid-word)
+        chunks = self._chunk_text(content, chunk_size=1000, overlap=100)
 
         # 4. Process Chunks
         vectors_data = []

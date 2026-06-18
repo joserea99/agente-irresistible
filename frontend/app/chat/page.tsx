@@ -6,12 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Send, Bot, User, Loader2, FileDown, Users, Clock, Volume2, StopCircle } from "lucide-react";
+import { Send, Bot, User, Loader2, FileDown, Users, Clock, Volume2, StopCircle, Sparkles } from "lucide-react";
 import { useAuthStore, api } from "@/lib/store";
 import { useLanguage } from "@/lib/language-context";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChatHistorySidebar } from "@/components/chat-history";
 import { MicButton } from "@/components/ui/mic-button";
+import { Markdown } from "@/components/ui/markdown";
 import { useSpeechToText } from "@/hooks/use-speech-to-text";
 import { useTextToSpeech } from "@/hooks/use-text-to-speech";
 
@@ -21,6 +22,46 @@ interface Director {
     key: string;
 }
 
+// Suggested starter prompts shown on the empty state, tailored per director.
+const STARTER_PROMPTS: Record<string, string[]> = {
+    "Pastor Principal": [
+        "Ayúdame a redactar la visión de nuestra iglesia para este año en una frase memorable.",
+        "Dame una estructura de sermón con Hook, Book, Look, Took sobre el perdón.",
+        "¿Cómo manejo la resistencia del equipo ante un cambio de horario de servicio?",
+    ],
+    "Comunicador": [
+        "Crea 5 ideas de publicaciones para redes para invitar a personas no creyentes.",
+        "Escribe un correo de bienvenida para nuevos visitantes.",
+        "¿Cómo comunicamos una nueva serie de predicaciones de forma irresistible?",
+    ],
+    "Programación de Servicio": [
+        "Diseña un run sheet de un servicio dominical de 75 minutos.",
+        "Ideas para mejorar la experiencia del foyer y la bienvenida.",
+        "¿Cómo reclutar y retener voluntarios de servicio?",
+    ],
+    "Niños (NextGen)": [
+        "Plan de seguridad infantil con los 5 Estándares de Oro.",
+        "¿Cómo aplicar la estrategia Orange con las familias de nuestra iglesia?",
+        "Ideas de un currículo de 4 semanas sobre la amabilidad para niños.",
+    ],
+    "Estudiantes": [
+        "Diseña un retiro juvenil de fin de semana con tema y dinámicas.",
+        "¿Cómo conecto a un adolescente nuevo a un grupo pequeño?",
+        "Ideas para que los estudiantes inviten a sus amigos no creyentes.",
+    ],
+    "Adultos (Grupos)": [
+        "Plan para lanzar grupos pequeños con un GroupLink.",
+        "¿Cómo entreno a un líder de grupo con el modelo Lead Small?",
+        "Preguntas de discusión para un grupo sobre la ansiedad.",
+    ],
+};
+
+const DEFAULT_PROMPTS = [
+    "¿Qué haría a nuestra iglesia irresistible para quienes no asisten?",
+    "Explícame las 7 Prácticas de una iglesia irresistible con ejemplos.",
+    "Ayúdame a definir 'el win' (la victoria) para mi área de ministerio.",
+];
+
 export default function ChatPage() {
     const [messages, setMessages] = useState<{ role: string; content: string }[]>([]);
     const [input, setInput] = useState("");
@@ -29,8 +70,11 @@ export default function ChatPage() {
     const [selectedDirector, setSelectedDirector] = useState<string>("Programación de Servicio");
     const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
     const [showHistory, setShowHistory] = useState(false); // Start closed on mobile
+    const [collaborateMode, setCollaborateMode] = useState(false);
+    const [consultedDirectors, setConsultedDirectors] = useState<string[]>([]);
 
     const scrollRef = useRef<HTMLDivElement>(null);
+    const chatContainerRef = useRef<HTMLDivElement>(null);
     const { user } = useAuthStore();
     const { t, language } = useLanguage();
 
@@ -103,29 +147,47 @@ export default function ChatPage() {
     }, [currentSessionId]);
 
     useEffect(() => {
-        if (scrollRef.current) {
-            scrollRef.current.scrollIntoView({ behavior: "smooth" });
+        if (chatContainerRef.current) {
+            chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
         }
     }, [messages, isLoading]);
 
-    const handleSend = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!input.trim()) return;
+    const submitMessage = async (text: string) => {
+        const trimmed = text.trim();
+        if (!trimmed || isLoading) return;
 
-        const newMessage = { role: "user", content: input };
-        setMessages((prev) => [...prev, newMessage]);
+        setMessages((prev) => [...prev, { role: "user", content: trimmed }]);
         setInput("");
         setIsLoading(true);
 
         try {
-            // Optimistic update
+            let response;
+            setConsultedDirectors([]);
 
-            const response = await api.post("/chat/message", {
-                message: newMessage.content,
-                session_id: currentSessionId, // Pass ID if exists
-                director: selectedDirector,
-                rag_enabled: false
-            });
+            if (collaborateMode) {
+                // Multi-director consultation
+                response = await api.post("/chat/consult", {
+                    message: trimmed,
+                    session_id: currentSessionId,
+                    primary_director: selectedDirector,
+                    auto_collaborate: true,
+                    rag_enabled: true,
+                });
+
+                // Track which directors contributed
+                const consulted = (response.data.consulted_directors || [])
+                    .filter((d: { status: string }) => d.status === "success")
+                    .map((d: { director: string }) => d.director);
+                setConsultedDirectors(consulted);
+            } else {
+                // Standard single-director chat
+                response = await api.post("/chat/message", {
+                    message: trimmed,
+                    session_id: currentSessionId,
+                    director: selectedDirector,
+                    rag_enabled: true,
+                });
+            }
 
             // Update session ID if new
             if (response.data.session_id && response.data.session_id !== currentSessionId) {
@@ -139,6 +201,11 @@ export default function ChatPage() {
         } finally {
             setIsLoading(false);
         }
+    };
+
+    const handleSend = (e: React.FormEvent) => {
+        e.preventDefault();
+        submitMessage(input);
     };
 
     const handleNewChat = () => {
@@ -245,6 +312,18 @@ export default function ChatPage() {
                                 </SelectContent>
                             </Select>
 
+                            {/* Collaborate Mode Toggle */}
+                            <Button
+                                variant={collaborateMode ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => setCollaborateMode(!collaborateMode)}
+                                title={collaborateMode ? "Modo Consejo activado" : "Activar Modo Consejo"}
+                                className="shrink-0 h-9 gap-1.5 text-xs"
+                            >
+                                <Sparkles className="h-3.5 w-3.5" />
+                                <span className="hidden sm:inline">Consejo</span>
+                            </Button>
+
                             {messages.length > 0 && (
                                 <Button
                                     variant="outline"
@@ -260,13 +339,30 @@ export default function ChatPage() {
                     </div>
 
                     <Card className="flex-1 flex flex-col overflow-hidden border-primary/20 bg-card/50 relative">
-                        <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+                        <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 custom-scrollbar">
                             <div className="space-y-4 max-w-3xl mx-auto">
                                 {messages.length === 0 && (
-                                    <div className="text-center py-20 text-muted-foreground">
-                                        <Bot className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                                        <p>Inicia una conversación con tu director seleccionado</p>
-                                        <p className="text-sm mt-2">Pregunta sobre estrategia, liderazgo, o cualquier desafío ministerial</p>
+                                    <div className="py-12 md:py-16 px-2">
+                                        <div className="text-center mb-8">
+                                            <div className="h-14 w-14 mx-auto mb-4 rounded-2xl bg-primary/10 flex items-center justify-center">
+                                                <Sparkles className="h-7 w-7 text-primary" />
+                                            </div>
+                                            <h2 className="text-lg font-semibold text-foreground">{selectedDirector}</h2>
+                                            <p className="text-sm text-muted-foreground mt-1 max-w-md mx-auto">
+                                                Tu consultor con acceso a la base de conocimiento de la Iglesia Irresistible. Pregunta lo que necesites o empieza con una idea:
+                                            </p>
+                                        </div>
+                                        <div className="grid gap-2 max-w-2xl mx-auto sm:grid-cols-2">
+                                            {(STARTER_PROMPTS[selectedDirector] || DEFAULT_PROMPTS).map((prompt) => (
+                                                <button
+                                                    key={prompt}
+                                                    onClick={() => submitMessage(prompt)}
+                                                    className="text-left text-sm rounded-xl border border-border bg-card/40 hover:bg-muted hover:border-primary/40 transition-colors px-4 py-3 text-foreground/90"
+                                                >
+                                                    {prompt}
+                                                </button>
+                                            ))}
+                                        </div>
                                     </div>
                                 )}
 
@@ -282,12 +378,12 @@ export default function ChatPage() {
                                                 {m.role === "user" ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
                                             </div>
                                             <div className={`flex flex-col gap-2 max-w-[85%] sm:max-w-[80%]`}>
-                                                <div className={`rounded-lg px-4 py-3 text-sm ${m.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
-                                                    <span className="whitespace-pre-wrap">{m.content}</span>
+                                                <div className={`rounded-lg px-4 py-3 text-sm ${m.role === "user" ? "bg-primary text-primary-foreground whitespace-pre-wrap" : "bg-muted"}`}>
+                                                    {m.role === "user" ? m.content : <Markdown>{m.content}</Markdown>}
                                                 </div>
-                                                {/* TTS Button for Assistant */}
+                                                {/* TTS Button + Consulted Directors Badge */}
                                                 {m.role === "assistant" && (
-                                                    <div className="flex gap-2">
+                                                    <div className="flex items-center gap-2 flex-wrap">
                                                         <Button
                                                             variant="ghost"
                                                             size="sm"
@@ -297,6 +393,17 @@ export default function ChatPage() {
                                                         >
                                                             {isSpeaking ? <StopCircle className="h-3 w-3" /> : <Volume2 className="h-3 w-3 opacity-50 hover:opacity-100" />}
                                                         </Button>
+                                                        {/* Show consulted directors on the last assistant message */}
+                                                        {i === messages.length - 1 && consultedDirectors.length > 0 && (
+                                                            <div className="flex items-center gap-1 flex-wrap">
+                                                                <Sparkles className="h-3 w-3 text-primary opacity-70" />
+                                                                {consultedDirectors.map((d) => (
+                                                                    <span key={d} className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">
+                                                                        {d}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 )}
                                             </div>

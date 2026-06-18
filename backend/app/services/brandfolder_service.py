@@ -7,6 +7,7 @@ Authentication: https://brandfolder.com/profile#integrations
 """
 
 import os
+import time
 import requests
 from typing import Optional, List, Dict, Any
 import tempfile
@@ -138,26 +139,35 @@ class BrandfolderAPI:
         
         while next_page:
             print(f"📄 Fetching page {next_page}...")
-            
+
             # Brandfolder API returns next_page as an integer in meta.
             # It does NOT reliably return links.next.
-            
             params["page"] = next_page
             result = self._request("GET", endpoint, params)
-            
+
+            # Retry transient errors (e.g. rate limits) so a single failed page
+            # does NOT silently truncate the whole library mid-pagination.
+            attempts = 0
+            while result.get("error") and attempts < 3:
+                attempts += 1
+                print(f"⚠️ Page {next_page} error (retry {attempts}/3): {result.get('error')}")
+                time.sleep(1.5 * attempts)
+                result = self._request("GET", endpoint, params)
+
             new_assets = result.get("data") or []
             new_included = result.get("included") or []
-            
+            meta = result.get("meta", {})
+            upcoming = meta.get("next_page")  # None if no more pages
+
             if not new_assets:
+                if result.get("error"):
+                    print(f"❌ Aborting pagination at page {next_page} after retries — list may be partial.")
                 break
-                
+
             assets.extend(new_assets)
             included.extend(new_included)
-            
-            # Update pagination info for next iteration
-            meta = result.get("meta", {})
-            next_page = meta.get("next_page") # Returns None if no more pages
-                
+            next_page = upcoming
+
         return self._map_attachments_to_assets(assets, included)
     
     def search_assets(self, brandfolder_id: str, query: str, 

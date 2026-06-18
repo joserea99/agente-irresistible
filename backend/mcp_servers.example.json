@@ -1,0 +1,35 @@
+{
+  "servers": [
+    {
+      "name": "google_calendar",
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "@anthropic/mcp-server-google-calendar"],
+      "credentials_env": "GOOGLE_CALENDAR_CREDENTIALS",
+      "allowed_roles": ["*"]
+    },
+    {
+      "name": "google_drive",
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "@anthropic/mcp-server-google-drive"],
+      "credentials_env": "GOOGLE_DRIVE_CREDENTIALS",
+      "allowed_roles": ["admin", "pastor_principal"]
+    },
+    {
+      "name": "planning_center",
+      "transport": "http",
+      "url": "https://your-planning-center-mcp.example.com",
+      "credentials_env": "PLANNING_CENTER_TOKEN",
+      "allowed_roles": ["admin", "pastor_principal", "adults_director"]
+    },
+    {
+      "name": "slack",
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "@anthropic/mcp-server-slack"],
+      "credentials_env": "SLACK_BOT_TOKEN",
+      "allowed_roles": ["admin", "pastor_principal"]
+    }
+  ]
+}

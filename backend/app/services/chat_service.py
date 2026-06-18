@@ -10,9 +10,14 @@ import os
 import logging
 
 from .personas import PERSONAS
+from .tools import search_knowledge_base, browse_live_page, get_youtube_transcript
+from .church_service import church_profile_service
 from ..core.config import settings
 
 logger = logging.getLogger(__name__)
+
+# Tools the chat agent can call autonomously (agentic loop via google-genai AFC).
+AGENT_TOOLS = [search_knowledge_base, browse_live_page, get_youtube_transcript]
 
 import re
 from io import BytesIO
@@ -59,65 +64,168 @@ class ChatService:
             })
         return directors
     
+    def _build_config(
+        self,
+        system_prompt: str,
+        use_tools: bool,
+        model: Optional[str] = None,
+    ) -> types.GenerateContentConfig:
+        """Build a GenerateContentConfig with persona, thinking, and (optionally) tools."""
+        kwargs = {
+            "system_instruction": system_prompt,
+            "temperature": settings.gemini_temperature,
+        }
+
+        # Extended reasoning ("thinking") — supported by Gemini 2.5 models.
+        try:
+            kwargs["thinking_config"] = types.ThinkingConfig(
+                thinking_budget=settings.gemini_thinking_budget
+            )
+        except Exception:
+            pass
+
+        # Agentic tools via automatic function calling (multi-step loop).
+        if use_tools and settings.agent_tools_enabled:
+            kwargs["tools"] = AGENT_TOOLS
+            kwargs["automatic_function_calling"] = types.AutomaticFunctionCallingConfig(
+                maximum_remote_calls=settings.agent_max_tool_calls
+            )
+
+        return types.GenerateContentConfig(**kwargs)
+
     def generate_response(
         self,
         user_input: str,
         history: List[Dict[str, str]] = [],
         director: str = "Programación de Servicio",
-        rag_context: Optional[str] = None
+        rag_context: Optional[str] = None,
+        use_tools: bool = True,
+        model: Optional[str] = None,
     ) -> str:
         """
-        Generate AI response
+        Generate an AI response.
+
+        When use_tools is True, the agent can autonomously search the knowledge
+        base, browse live pages, and read YouTube transcripts in a multi-step
+        loop (Gemini automatic function calling).
         """
         if not self.client:
             return "⚠️ **Error:** No Google Gemini API Key configured."
-        
+
         # Get system prompt for selected director
         system_prompt = PERSONAS.get(director, PERSONAS["Programación de Servicio"])
-        
-        # Add RAG context if available
+
+        # Inject church memory (who this church is) so advice is context-specific
+        try:
+            system_prompt += church_profile_service.build_context()
+        except Exception as ctx_err:
+            logger.debug(f"Church context unavailable: {ctx_err}")
+
+        # Add RAG context if available (pre-fetched grounding for the first turn)
         if rag_context:
             system_prompt += f"""
-            
+
 ## RELEVANT CONTEXT FROM KNOWLEDGE BASE:
 The following is information retrieved from the church's knowledge base that may be relevant to the user's question:
 
 {rag_context}
 
-Use this context to provide more specific and accurate answers. If the context doesn't apply, use your general knowledge.
+Use this context to provide more specific and accurate answers. If you need MORE
+specific information, use the `search_knowledge_base` tool. If the context doesn't
+apply, use your general knowledge.
 """
-        
-        # Build messages for google-genai
-        # It expects a list of Content objects or properly formatted config
-        # We'll use the generate_content API which usually takes system instruction in config
-        
+
+        # Build conversation history
         contents = []
         for msg in history[-10:]:
-             role = "user" if msg["role"] == "user" else "model"
-             contents.append(types.Content(
-                 role=role,
-                 parts=[types.Part.from_text(text=msg["content"])]
-             ))
-             
+            role = "user" if msg["role"] == "user" else "model"
+            contents.append(types.Content(
+                role=role,
+                parts=[types.Part.from_text(text=msg["content"])]
+            ))
+
         contents.append(types.Content(
             role="user",
             parts=[types.Part.from_text(text=user_input)]
         ))
-        
-        # Generate response
+
+        # Generate response (agentic loop handled by the SDK when tools are enabled)
         try:
             response = self.client.models.generate_content(
-                model=self.model_name,
+                model=model or self.model_name,
                 contents=contents,
-                config=types.GenerateContentConfig(
-                    system_instruction=system_prompt,
-                    temperature=settings.gemini_temperature,
-                )
+                config=self._build_config(system_prompt, use_tools=use_tools, model=model),
             )
-            return response.text
+            return response.text or "⚠️ No pude generar una respuesta. Intenta reformular tu pregunta."
         except Exception as e:
+            logger.error(f"Error generating response: {e}")
             return f"❌ Error generating response: {str(e)}"
     
+    def generate_response_stream(
+        self,
+        user_input: str,
+        history: List[Dict[str, str]] = [],
+        director: str = "Programación de Servicio",
+        rag_context: Optional[str] = None,
+        use_tools: bool = True,
+        model: Optional[str] = None,
+    ):
+        """
+        Stream an AI response token-by-token (generator yielding text chunks).
+        Tools (knowledge base search, browse, YouTube) still work via automatic
+        function calling — tool rounds resolve, then the final answer streams.
+        """
+        if not self.client:
+            yield "⚠️ **Error:** No Google Gemini API Key configured."
+            return
+
+        system_prompt = PERSONAS.get(director, PERSONAS["Programación de Servicio"])
+
+        # Inject church memory (who this church is) so advice is context-specific
+        try:
+            system_prompt += church_profile_service.build_context()
+        except Exception as ctx_err:
+            logger.debug(f"Church context unavailable: {ctx_err}")
+
+        if rag_context:
+            system_prompt += f"""
+
+## RELEVANT CONTEXT FROM KNOWLEDGE BASE:
+The following is information retrieved from the church's knowledge base that may be relevant to the user's question:
+
+{rag_context}
+
+Use this context to provide more specific and accurate answers. If you need MORE
+specific information, use the `search_knowledge_base` tool. If the context doesn't
+apply, use your general knowledge.
+"""
+
+        contents = []
+        for msg in history[-10:]:
+            role = "user" if msg["role"] == "user" else "model"
+            contents.append(types.Content(
+                role=role,
+                parts=[types.Part.from_text(text=msg["content"])]
+            ))
+        contents.append(types.Content(
+            role="user",
+            parts=[types.Part.from_text(text=user_input)]
+        ))
+
+        try:
+            stream = self.client.models.generate_content_stream(
+                model=model or self.model_name,
+                contents=contents,
+                config=self._build_config(system_prompt, use_tools=use_tools, model=model),
+            )
+            for chunk in stream:
+                text = getattr(chunk, "text", None)
+                if text:
+                    yield text
+        except Exception as e:
+            logger.error(f"Error streaming response: {e}")
+            yield f"\n\n❌ Error generando respuesta: {str(e)}"
+
     def export_conversation_to_docx(self, history: List[Dict[str, str]], title: str = "Conversación") -> bytes:
         """
         Export conversation to Word document

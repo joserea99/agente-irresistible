@@ -101,18 +101,29 @@ def full_sync():
         bf_api = BrandfolderAPI()
         rag = RAGManager()
 
-        # 1. Get all Brandfolders
+        # 1. Get ALL Brandfolders (index the entire library, not just the first one)
         brandfolders = bf_api.get_brandfolders()
         if not brandfolders:
             raise ValueError("No Brandfolders accessible.")
-        bf_id = brandfolders[0]["id"]
-        print(f"📚 [AutoSync] Using Brandfolder: {brandfolders[0].get('attributes', {}).get('name')} ({bf_id})")
+        print(f"📚 [AutoSync] {len(brandfolders)} Brandfolder(s) accessible.")
 
-        # 2. Get ALL assets (paginated, no search filter)
-        print("🔍 [AutoSync] Fetching all assets from Brandfolder...")
-        raw_assets = bf_api.get_assets(brandfolder_id=bf_id, per_page=100)
+        # 2. Get ALL assets from EVERY brandfolder (paginated, no search filter)
+        raw_assets = []
+        seen_asset_ids = set()
+        for bf in brandfolders:
+            bf_id = bf["id"]
+            bf_name = bf.get("attributes", {}).get("name", bf_id)
+            print(f"🔍 [AutoSync] Fetching assets from '{bf_name}' ({bf_id})...")
+            bf_assets = bf_api.get_assets(brandfolder_id=bf_id, per_page=100)
+            # Dedupe across brandfolders (an asset can appear via collections)
+            unique = [a for a in bf_assets if a.get("id") and a["id"] not in seen_asset_ids]
+            for a in unique:
+                seen_asset_ids.add(a["id"])
+            raw_assets.extend(unique)
+            print(f"   → {len(bf_assets)} found in '{bf_name}' ({len(unique)} new across library)")
+
         stats["total_found"] = len(raw_assets)
-        print(f"✅ [AutoSync] Found {len(raw_assets)} total assets in library.")
+        print(f"✅ [AutoSync] Found {len(raw_assets)} unique assets across all Brandfolders.")
 
         # Update log with total count
         c.execute(
@@ -157,6 +168,10 @@ def full_sync():
                     asset_type = "audio"
                     url = att.get("url")
                     break
+                if "image" in mimetype:
+                    asset_type = "image"
+                    url = att.get("url")
+                    break
 
             source_link = f"https://brandfolder.com/workbench/{asset_id}"
 
@@ -184,27 +199,32 @@ def full_sync():
 
                 content = f"Asset: {name}\nType: {asset_type}"
 
-                if asset_type in ["video", "audio", "document"]:
+                if asset_type in ["video", "audio", "document", "image"]:
                     try:
                         fresh_details = bf_api.get_asset_details(asset_id)
                         fresh_info = bf_api.extract_asset_info(fresh_details)
 
                         fresh_url = None
+                        fresh_mime = ""
                         for att in fresh_info["attachments"]:
                             mimetype = att.get("mimetype") or ""
                             if asset_type == "video" and "video" in mimetype:
-                                fresh_url = att.get("url")
+                                fresh_url = att.get("url"); fresh_mime = mimetype
                                 break
                             if asset_type == "audio" and "audio" in mimetype:
-                                fresh_url = att.get("url")
+                                fresh_url = att.get("url"); fresh_mime = mimetype
+                                break
+                            if asset_type == "image" and "image" in mimetype:
+                                fresh_url = att.get("url"); fresh_mime = mimetype
                                 break
                             if asset_type == "document" and any(x in mimetype for x in ["pdf", "document", "text"]):
-                                fresh_url = att.get("url")
+                                fresh_url = att.get("url"); fresh_mime = mimetype
                                 break
 
-                        # Fallback to first attachment for documents
-                        if not fresh_url and asset_type == "document" and fresh_info["attachments"]:
+                        # Fallback to first attachment for documents/images
+                        if not fresh_url and asset_type in ("document", "image") and fresh_info["attachments"]:
                             fresh_url = fresh_info["attachments"][0].get("url")
+                            fresh_mime = fresh_info["attachments"][0].get("mimetype") or ""
 
                         if fresh_url and fresh_url.startswith("http"):
                             local_path = bf_api.download_attachment(fresh_url)
@@ -213,6 +233,11 @@ def full_sync():
                                     mime = "video/mp4" if asset_type == "video" else "audio/mp3"
                                     transcript = media_service.transcribe_media(local_path, mime_type=mime)
                                     content += f"\n\n--- TRANSCRIPT ---\n{transcript}"
+                                elif asset_type == "image":
+                                    caption = media_service.describe_image(
+                                        local_path, mime_type=(fresh_mime or "image/jpeg")
+                                    )
+                                    content += f"\n\n--- DESCRIPCIÓN DE LA IMAGEN (IA) ---\n{caption}"
                                 elif asset_type == "document":
                                     import pypdf
                                     try:

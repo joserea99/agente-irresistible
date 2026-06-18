@@ -101,18 +101,29 @@ def full_sync():
         bf_api = BrandfolderAPI()
         rag = RAGManager()
 
-        # 1. Get all Brandfolders
+        # 1. Get ALL Brandfolders (index the entire library, not just the first one)
         brandfolders = bf_api.get_brandfolders()
         if not brandfolders:
             raise ValueError("No Brandfolders accessible.")
-        bf_id = brandfolders[0]["id"]
-        print(f"📚 [AutoSync] Using Brandfolder: {brandfolders[0].get('attributes', {}).get('name')} ({bf_id})")
+        print(f"📚 [AutoSync] {len(brandfolders)} Brandfolder(s) accessible.")
 
-        # 2. Get ALL assets (paginated, no search filter)
-        print("🔍 [AutoSync] Fetching all assets from Brandfolder...")
-        raw_assets = bf_api.get_assets(brandfolder_id=bf_id, per_page=100)
+        # 2. Get ALL assets from EVERY brandfolder (paginated, no search filter)
+        raw_assets = []
+        seen_asset_ids = set()
+        for bf in brandfolders:
+            bf_id = bf["id"]
+            bf_name = bf.get("attributes", {}).get("name", bf_id)
+            print(f"🔍 [AutoSync] Fetching assets from '{bf_name}' ({bf_id})...")
+            bf_assets = bf_api.get_assets(brandfolder_id=bf_id, per_page=100)
+            # Dedupe across brandfolders (an asset can appear via collections)
+            unique = [a for a in bf_assets if a.get("id") and a["id"] not in seen_asset_ids]
+            for a in unique:
+                seen_asset_ids.add(a["id"])
+            raw_assets.extend(unique)
+            print(f"   → {len(bf_assets)} found in '{bf_name}' ({len(unique)} new across library)")
+
         stats["total_found"] = len(raw_assets)
-        print(f"✅ [AutoSync] Found {len(raw_assets)} total assets in library.")
+        print(f"✅ [AutoSync] Found {len(raw_assets)} unique assets across all Brandfolders.")
 
         # Update log with total count
         c.execute(

@@ -41,6 +41,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Session-Id", "X-Session-Title"],
 )
 
 # --- Rate Limiting ---
@@ -66,7 +67,7 @@ def health_check():
     return {"status": "healthy"}
 
 # Include Routers
-from app.routers import auth, chat, brandfolder, magic, dojo, knowledge, sync, subscription
+from app.routers import auth, chat, brandfolder, magic, dojo, knowledge, sync, subscription, mcp, oauth_integration, church
 
 app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 app.include_router(chat.router, prefix="/chat", tags=["Chat"])
@@ -76,6 +77,31 @@ app.include_router(dojo.router, prefix="/dojo", tags=["Dojo"])
 app.include_router(knowledge.router, prefix="/knowledge", tags=["Knowledge"])
 app.include_router(sync.router, prefix="/sync", tags=["Auto Sync"])
 app.include_router(subscription.router, prefix="/subscription", tags=["Subscription"])
+app.include_router(mcp.router, prefix="/mcp", tags=["MCP Integrations"])
+app.include_router(oauth_integration.router, prefix="/oauth", tags=["OAuth Integrations"])
+app.include_router(church.router, prefix="/church", tags=["Church Profile"])
+
+# ---------- MCP Registry Startup ----------
+@app.on_event("startup")
+async def start_mcp_registry():
+    """Initialize MCP tool registry from config."""
+    try:
+        from app.services.mcp import McpToolRegistry
+        from app.routers.mcp import set_registry
+
+        registry = McpToolRegistry()
+        registry.initialize()
+
+        # Register Planning Center MCP server (per-user OAuth, always available)
+        from app.services.mcp.planning_center_server import PlanningCenterMcpServer
+        pc_server = PlanningCenterMcpServer()  # Template instance (no user context yet)
+        registry.register_internal_server(pc_server)
+        logger.info("Planning Center MCP server registered (OAuth per-user mode).")
+
+        set_registry(registry)
+        logger.info("MCP tool registry initialized.")
+    except Exception as e:
+        logger.warning(f"MCP registry startup failed (non-fatal): {e}")
 
 # ---------- Automatic Scheduler ----------
 @app.on_event("startup")

@@ -152,6 +152,55 @@ export default function ChatPage() {
         }
     }, [messages, isLoading]);
 
+    // Streaming chat for single-director mode (token-by-token, premium feel).
+    const streamChat = async (trimmed: string) => {
+        const token = useAuthStore.getState().token;
+        const baseURL = api.defaults.baseURL || "";
+
+        const res = await fetch(`${baseURL}/chat/stream`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+                message: trimmed,
+                session_id: currentSessionId,
+                director: selectedDirector,
+                rag_enabled: true,
+            }),
+        });
+
+        if (!res.ok || !res.body) {
+            throw new Error(`Stream failed: ${res.status}`);
+        }
+
+        const newSessionId = res.headers.get("X-Session-Id");
+
+        // Add an empty assistant bubble we'll fill as chunks arrive.
+        setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let acc = "";
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            acc += decoder.decode(value, { stream: true });
+            setMessages((prev) => {
+                const copy = [...prev];
+                copy[copy.length - 1] = { role: "assistant", content: acc };
+                return copy;
+            });
+        }
+
+        // Set session id at the end so the session-load effect doesn't clear the stream.
+        if (newSessionId && newSessionId !== currentSessionId) {
+            setCurrentSessionId(newSessionId);
+        }
+    };
+
     const submitMessage = async (text: string) => {
         const trimmed = text.trim();
         if (!trimmed || isLoading) return;
@@ -159,14 +208,12 @@ export default function ChatPage() {
         setMessages((prev) => [...prev, { role: "user", content: trimmed }]);
         setInput("");
         setIsLoading(true);
+        setConsultedDirectors([]);
 
         try {
-            let response;
-            setConsultedDirectors([]);
-
             if (collaborateMode) {
-                // Multi-director consultation
-                response = await api.post("/chat/consult", {
+                // Multi-director consultation (council mode — not streamed)
+                const response = await api.post("/chat/consult", {
                     message: trimmed,
                     session_id: currentSessionId,
                     primary_director: selectedDirector,
@@ -174,27 +221,19 @@ export default function ChatPage() {
                     rag_enabled: true,
                 });
 
-                // Track which directors contributed
                 const consulted = (response.data.consulted_directors || [])
                     .filter((d: { status: string }) => d.status === "success")
                     .map((d: { director: string }) => d.director);
                 setConsultedDirectors(consulted);
+
+                if (response.data.session_id && response.data.session_id !== currentSessionId) {
+                    setCurrentSessionId(response.data.session_id);
+                }
+                setMessages((prev) => [...prev, { role: "assistant", content: response.data.message }]);
             } else {
-                // Standard single-director chat
-                response = await api.post("/chat/message", {
-                    message: trimmed,
-                    session_id: currentSessionId,
-                    director: selectedDirector,
-                    rag_enabled: true,
-                });
+                // Single-director chat — streamed token-by-token
+                await streamChat(trimmed);
             }
-
-            // Update session ID if new
-            if (response.data.session_id && response.data.session_id !== currentSessionId) {
-                setCurrentSessionId(response.data.session_id);
-            }
-
-            setMessages((prev) => [...prev, { role: "assistant", content: response.data.message }]);
         } catch (error) {
             console.error("Chat error:", error);
             setMessages((prev) => [...prev, { role: "assistant", content: "Error: No se pudo obtener respuesta del servidor." }]);
@@ -411,14 +450,16 @@ export default function ChatPage() {
                                     ))}
                                 </AnimatePresence>
 
-                                {isLoading && (
+                                {isLoading && messages[messages.length - 1]?.role !== "assistant" && (
                                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-start gap-4">
                                         <div className="h-8 w-8 rounded-full bg-muted text-muted-foreground flex items-center justify-center shrink-0">
                                             <Bot className="h-4 w-4" />
                                         </div>
                                         <div className="bg-muted rounded-lg px-4 py-3 flex items-center gap-2">
                                             <Loader2 className="h-4 w-4 animate-spin" />
-                                            <span className="text-xs text-muted-foreground">Pensando...</span>
+                                            <span className="text-xs text-muted-foreground">
+                                                {collaborateMode ? "Consultando al consejo..." : "Pensando..."}
+                                            </span>
                                         </div>
                                     </motion.div>
                                 )}

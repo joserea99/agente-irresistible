@@ -11,6 +11,7 @@ import logging
 
 from .personas import PERSONAS
 from .tools import search_knowledge_base, browse_live_page, get_youtube_transcript
+from .church_service import church_profile_service
 from ..core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -114,6 +115,12 @@ class ChatService:
         # Get system prompt for selected director
         system_prompt = PERSONAS.get(director, PERSONAS["Programación de Servicio"])
 
+        # Inject church memory (who this church is) so advice is context-specific
+        try:
+            system_prompt += church_profile_service.build_context()
+        except Exception as ctx_err:
+            logger.debug(f"Church context unavailable: {ctx_err}")
+
         # Add RAG context if available (pre-fetched grounding for the first turn)
         if rag_context:
             system_prompt += f"""
@@ -154,6 +161,71 @@ apply, use your general knowledge.
             logger.error(f"Error generating response: {e}")
             return f"❌ Error generating response: {str(e)}"
     
+    def generate_response_stream(
+        self,
+        user_input: str,
+        history: List[Dict[str, str]] = [],
+        director: str = "Programación de Servicio",
+        rag_context: Optional[str] = None,
+        use_tools: bool = True,
+        model: Optional[str] = None,
+    ):
+        """
+        Stream an AI response token-by-token (generator yielding text chunks).
+        Tools (knowledge base search, browse, YouTube) still work via automatic
+        function calling — tool rounds resolve, then the final answer streams.
+        """
+        if not self.client:
+            yield "⚠️ **Error:** No Google Gemini API Key configured."
+            return
+
+        system_prompt = PERSONAS.get(director, PERSONAS["Programación de Servicio"])
+
+        # Inject church memory (who this church is) so advice is context-specific
+        try:
+            system_prompt += church_profile_service.build_context()
+        except Exception as ctx_err:
+            logger.debug(f"Church context unavailable: {ctx_err}")
+
+        if rag_context:
+            system_prompt += f"""
+
+## RELEVANT CONTEXT FROM KNOWLEDGE BASE:
+The following is information retrieved from the church's knowledge base that may be relevant to the user's question:
+
+{rag_context}
+
+Use this context to provide more specific and accurate answers. If you need MORE
+specific information, use the `search_knowledge_base` tool. If the context doesn't
+apply, use your general knowledge.
+"""
+
+        contents = []
+        for msg in history[-10:]:
+            role = "user" if msg["role"] == "user" else "model"
+            contents.append(types.Content(
+                role=role,
+                parts=[types.Part.from_text(text=msg["content"])]
+            ))
+        contents.append(types.Content(
+            role="user",
+            parts=[types.Part.from_text(text=user_input)]
+        ))
+
+        try:
+            stream = self.client.models.generate_content_stream(
+                model=model or self.model_name,
+                contents=contents,
+                config=self._build_config(system_prompt, use_tools=use_tools, model=model),
+            )
+            for chunk in stream:
+                text = getattr(chunk, "text", None)
+                if text:
+                    yield text
+        except Exception as e:
+            logger.error(f"Error streaming response: {e}")
+            yield f"\n\n❌ Error generando respuesta: {str(e)}"
+
     def export_conversation_to_docx(self, history: List[Dict[str, str]], title: str = "Conversación") -> bytes:
         """
         Export conversation to Word document

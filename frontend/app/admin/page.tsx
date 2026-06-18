@@ -10,11 +10,10 @@ import { Badge } from "@/components/ui/badge";
 import { useAuthStore, api } from "@/lib/store";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Trash2, UserCog, RefreshCw, CheckCircle2, AlertCircle, Loader2, Search, Upload, Building2 } from "lucide-react";
+import { Trash2, UserCog, RefreshCw, CheckCircle2, AlertCircle, Loader2, Search, Upload } from "lucide-react";
 import { AVAILABLE_ROLES } from "@/lib/dashboard-config";
 import DeepResearch from "@/components/deep-research";
 import { FileUploader } from "@/components/file-uploader";
-import { ChurchProfileEditor } from "@/components/church-profile-editor";
 
 interface UserData {
     id: string;
@@ -131,14 +130,10 @@ export default function AdminPage() {
                 </div>
 
                 <Tabs defaultValue="users" className="w-full">
-                    <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 lg:w-[680px]">
+                    <TabsList className="grid w-full grid-cols-3 lg:w-[500px]">
                         <TabsTrigger value="users" className="flex items-center gap-2">
                             <UserCog className="h-4 w-4" />
                             Usuarios
-                        </TabsTrigger>
-                        <TabsTrigger value="church" className="flex items-center gap-2">
-                            <Building2 className="h-4 w-4" />
-                            Iglesia
                         </TabsTrigger>
                         <TabsTrigger value="sync" className="flex items-center gap-2">
                             <Upload className="h-4 w-4" />
@@ -149,11 +144,6 @@ export default function AdminPage() {
                             Deep Research
                         </TabsTrigger>
                     </TabsList>
-
-                    {/* ─── Church Profile (Memory) Tab ─── */}
-                    <TabsContent value="church" className="mt-6">
-                        <ChurchProfileEditor />
-                    </TabsContent>
 
                     {/* ─── Users Tab ─── */}
                     <TabsContent value="users" className="mt-6">

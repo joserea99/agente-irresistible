@@ -14,50 +14,6 @@ class MediaService:
         else:
             self.client = genai.Client(api_key=self.api_key)
             
-    def describe_image(self, file_path: str, mime_type: str = "image/jpeg") -> str:
-        """
-        Describe an image with Gemini Vision so graphics become searchable by
-        their visual content (not just their filename). Returns a rich Spanish
-        caption: what it shows, any visible text, style, colors, and likely use.
-        """
-        if not self.client:
-            raise ValueError("GOOGLE_API_KEY not configured.")
-        if not os.path.exists(file_path):
-            raise FileNotFoundError(f"File not found: {file_path}")
-
-        try:
-            with open(file_path, "rb") as f:
-                data = f.read()
-
-            prompt = (
-                "Eres un catalogador de un banco de recursos visuales de una iglesia. "
-                "Describe esta imagen de forma rica y buscable en español:\n"
-                "1. Qué muestra (personas, objetos, escena, ambiente).\n"
-                "2. Cualquier TEXTO visible — transcríbelo literalmente.\n"
-                "3. Estilo visual, tono y colores dominantes.\n"
-                "4. Para qué uso ministerial serviría (serie de prédica, redes, evento, etc.).\n"
-                "Sé concreto y conciso; esta descripción se usará para búsquedas."
-            )
-
-            models_to_try = ["gemini-2.5-flash", "gemini-2.5-pro"]
-            last_error = None
-            for model_name in models_to_try:
-                try:
-                    response = self.client.models.generate_content(
-                        model=model_name,
-                        contents=[prompt, types.Part.from_bytes(data=data, mime_type=mime_type)],
-                    )
-                    if response and response.text:
-                        return response.text
-                except Exception as e:
-                    last_error = e
-                    continue
-
-            return f"[Image caption failed: {last_error}]"
-        except Exception as e:
-            print(f"❌ Image description error: {str(e)}")
-            return f"Error describing image: {str(e)}"
-
     def transcribe_media(self, file_path: str, mime_type: str) -> str:
         """
         Uploads an audio/video file to Gemini and retrieves the transcription.
@@ -96,10 +52,11 @@ class MediaService:
             
             prompt = "Transcribe the audio in this file. Provide a comprehensive summary of the key points, followed by a detailed transcript if possible. If it's a video, describe the visual content as well."
             
-            # Model Fallback Strategy (current, available models)
+            # Model Fallback Strategy
             models_to_try = [
-                "gemini-2.5-flash",      # Standard, fast
-                "gemini-2.5-pro",        # High quality fallback
+                "gemini-2.5-flash",      # New standard, very fast
+                "gemini-1.5-flash",      # Good fallback
+                "gemini-1.5-pro",        # High quality fallback
             ]
             
             response = None

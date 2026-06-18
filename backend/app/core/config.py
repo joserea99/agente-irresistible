@@ -17,11 +17,6 @@ class Settings(BaseSettings):
     supabase_url: str = ""
     supabase_service_role_key: str = ""
 
-    # --- Planning Center OAuth2 ---
-    planning_center_client_id: str = ""
-    planning_center_client_secret: str = ""
-    planning_center_redirect_uri: str = "http://localhost:8000/oauth/planning-center/callback"
-
     # --- Stripe ---
     stripe_secret_key: str = ""
     stripe_price_id: str = ""
@@ -35,16 +30,9 @@ class Settings(BaseSettings):
     allowed_origins: str = "http://localhost:3000"
 
     # --- AI Model ---
-    gemini_model: str = "gemini-2.5-flash"            # Default chat model
-    gemini_model_heavy: str = "gemini-2.5-pro"        # For deep tasks (synthesis, deep research)
+    gemini_model: str = "gemini-2.5-flash"
     gemini_embedding_model: str = "gemini-embedding-001"
     gemini_temperature: float = 0.7
-
-    # --- Agent behavior ---
-    # Thinking budget: -1 = dynamic (model decides), 0 = off, >0 = fixed token budget.
-    gemini_thinking_budget: int = -1
-    agent_tools_enabled: bool = True                  # Let the chat agent call tools (RAG search, browse, YouTube)
-    agent_max_tool_calls: int = 5                     # Max tool-call rounds per response (agentic loop)
 
     # --- Rate Limiting ---
     rate_limit_chat: str = "30/minute"

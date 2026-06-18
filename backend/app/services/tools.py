@@ -31,13 +31,10 @@ def get_youtube_transcript(url: str) -> str:
         return f"Error extracting transcript: {e} (Note: Video must have captions enabled)"
 
 def search_knowledge_base(query: str) -> str:
-    """Searches the church's internal knowledge base (Irresistible Church books,
-    PDFs, sermons, crawled pages) for relevant information. Use this whenever the
-    user asks about strategy, models, frameworks, ministry practices, or anything
-    that may be documented in the church library. Returns relevant excerpts."""
+    """Searches the internal knowledge base (PDFs, crawled pages) for relevant information."""
     print(f"🕵️ Searching Knowledge Base for: {query}")
     rag = RAGManager()
-    results = rag.search(query, n_results=5)
+    results = rag.search(query, n_results=3)
     if not results:
         return "No relevant information found in the knowledge base."
     return results

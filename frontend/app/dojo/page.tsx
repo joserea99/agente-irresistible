@@ -11,7 +11,7 @@ import { useLanguage } from "@/lib/language-context";
 import { api } from "@/lib/store";
 import { Loader2, Send, User, Bot, Play, Trophy, AlertTriangle, Target, MessageSquare, Sparkles, Volume2, StopCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Markdown } from "@/components/ui/markdown";
+import ReactMarkdown from 'react-markdown';
 import { MicButton } from "@/components/ui/mic-button";
 import { useSpeechToText } from "@/hooks/use-speech-to-text";
 import { useTextToSpeech } from "@/hooks/use-text-to-speech";
@@ -422,8 +422,9 @@ export default function DojoPage() {
                                             <p className="text-muted-foreground">{t.dojo.evaluateDescription}</p>
                                         </div>
                                     </div>
-                                    <div className="max-w-none">
-                                        <Markdown>{evaluation}</Markdown>
+                                    <div className="prose dark:prose-invert max-w-none">
+                                        {/* Use basic pre-wrap for now to avoid react-markdown issues if not installed */}
+                                        <div className="whitespace-pre-wrap">{evaluation}</div>
                                     </div>
                                     <div className="mt-8 flex justify-center">
                                         <Button onClick={() => { setEvaluation(null); setSelectedScenarioId(null); setIsPlaying(false); }}>

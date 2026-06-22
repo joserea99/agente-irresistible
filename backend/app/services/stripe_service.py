@@ -11,24 +11,39 @@ stripe.api_key = os.environ.get("STRIPE_SECRET_KEY")
 class StripeService:
     def __init__(self):
         self.api_key = stripe.api_key
+        self.price_id = os.environ.get("STRIPE_PRICE_ID")
+
         if not self.api_key:
-            logger.warning("STRIPE_SECRET_KEY not set.")
+            logger.warning("STRIPE_SECRET_KEY not set. Subscription features are disabled.")
+        if not self.price_id:
+            logger.warning("STRIPE_PRICE_ID not set. Subscription features are disabled.")
+
+    def _check_configured(self):
+        """Raise a clear error if Stripe is not configured."""
+        if not self.api_key:
+            raise ValueError(
+                "Stripe is not configured. Please add STRIPE_SECRET_KEY to your Railway environment variables. "
+                "Get your key at: https://dashboard.stripe.com/apikeys"
+            )
+        if not self.price_id:
+            raise ValueError(
+                "Stripe Price ID is not configured. Please add STRIPE_PRICE_ID to your Railway environment variables. "
+                "Create a product at: https://dashboard.stripe.com/products"
+            )
 
     def create_checkout_session(self, user_id: str, email: str, return_url: str) -> str:
         """
         Creates a Stripe Checkout Session for a subscription.
         Returns the URL to redirect the user to.
         """
+        self._check_configured()
         try:
             # We use metadata to link the Stripe session back to our Supabase user
             checkout_session = stripe.checkout.Session.create(
                 customer_email=email,
                 line_items=[
                     {
-                        # Provide the exact Price ID (e.g. price_1234) of the product you want to sell
-                        # For dynamic prices, we might need to look it up or pass it in.
-                        # Using a placeholder environment variable for now.
-                        'price': os.environ.get("STRIPE_PRICE_ID"),
+                        'price': self.price_id,
                         'quantity': 1,
                     },
                 ],
@@ -55,6 +70,7 @@ class StripeService:
         """
         Creates a Billing Portal session for users to manage their subscription.
         """
+        self._check_configured()
         try:
             portal_session = stripe.billing_portal.Session.create(
                 customer=customer_id,
@@ -71,5 +87,9 @@ class StripeService:
             return sub.status
         except Exception:
             return "unknown"
+
+    @property
+    def is_configured(self) -> bool:
+        return bool(self.api_key and self.price_id)
 
 stripe_service = StripeService()

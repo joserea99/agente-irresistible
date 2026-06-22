@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { api } from "@/lib/store"; // Still needed for other things? Maybe not for auth.
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,10 +9,27 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Label } from "@/components/ui/label";
 import { Lock, User, Mail, UserCircle } from "lucide-react";
 import { motion } from "framer-motion";
+import { useLanguage } from "@/lib/language-context";
 
 export default function RegisterPage() {
+    const { language } = useLanguage();
+    const t = {
+        title:        language === 'es' ? "Crear Cuenta"                              : "Create Account",
+        description:  language === 'es' ? "Regístrate para acceder al Agente Estratégico" : "Sign up to access the Strategic Agent",
+        fullName:     language === 'es' ? "Nombre Completo"                           : "Full Name",
+        username:     language === 'es' ? "Nombre de Usuario"                        : "Username",
+        email:        language === 'es' ? "Correo Electrónico"                       : "Email",
+        password:     language === 'es' ? "Contraseña"                               : "Password",
+        submit:       language === 'es' ? "Registrarse"                              : "Sign Up",
+        loading:      language === 'es' ? "Creando Cuenta..."                        : "Creating Account...",
+        success:      language === 'es' ? "¡Cuenta creada! Redirigiendo..."          : "Account created! Redirecting...",
+        hasAccount:   language === 'es' ? "¿Ya tienes cuenta?"                       : "Already have an account?",
+        signIn:       language === 'es' ? "Inicia sesión"                            : "Sign in",
+        footer:       language === 'es' ? "Seguridad Irresistible Agent"             : "Irresistible Agent Security",
+    };
+
     const [formData, setFormData] = useState({
-        username: "", // This will be treated as a display username or metadata
+        username: "",
         email: "",
         password: "",
         full_name: ""
@@ -53,7 +69,7 @@ export default function RegisterPage() {
 
             // Supabase trigger should handle profile creation in 'public.profiles'
 
-            setSuccessMessage("Account created successfully! Redirecting...");
+            setSuccessMessage(t.success);
 
             // Short delay then redirect
             setTimeout(() => {
@@ -90,13 +106,13 @@ export default function RegisterPage() {
             >
                 <Card className="w-[450px] border-sidebar-border bg-card/50 backdrop-blur-xl shadow-2xl">
                     <CardHeader className="text-center">
-                        <CardTitle className="text-2xl font-bold font-heading text-primary">Create Account</CardTitle>
-                        <CardDescription>Sign up to access the Strategic Agent</CardDescription>
+                        <CardTitle className="text-2xl font-bold font-heading text-primary">{t.title}</CardTitle>
+                        <CardDescription>{t.description}</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <form onSubmit={handleRegister} className="space-y-4">
                             <div className="space-y-2">
-                                <Label htmlFor="full_name">Full Name</Label>
+                                <Label htmlFor="full_name">{t.fullName}</Label>
                                 <div className="relative">
                                     <UserCircle className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                                     <Input
@@ -111,7 +127,7 @@ export default function RegisterPage() {
                                 </div>
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="username">Username</Label>
+                                <Label htmlFor="username">{t.username}</Label>
                                 <div className="relative">
                                     <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                                     <Input
@@ -126,7 +142,7 @@ export default function RegisterPage() {
                                 </div>
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="email">Email</Label>
+                                <Label htmlFor="email">{t.email}</Label>
                                 <div className="relative">
                                     <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                                     <Input
@@ -142,7 +158,7 @@ export default function RegisterPage() {
                                 </div>
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="password">Password</Label>
+                                <Label htmlFor="password">{t.password}</Label>
                                 <div className="relative">
                                     <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                                     <Input
@@ -165,23 +181,20 @@ export default function RegisterPage() {
                                 className="w-full bg-primary hover:bg-primary/90 transition-all shadow-lg shadow-primary/25"
                                 disabled={isLoading}
                             >
-                                {isLoading ? "Creating Account..." : "Sign Up"}
+                                {isLoading ? t.loading : t.submit}
                             </Button>
                         </form>
                     </CardContent>
                     <CardFooter className="flex flex-col space-y-2">
                         <div className="text-center">
                             <p className="text-sm text-muted-foreground">
-                                Already have an account?{" "}
-                                <a
-                                    href="/login"
-                                    className="text-primary hover:underline font-medium"
-                                >
-                                    Sign in
+                                {t.hasAccount}{" "}
+                                <a href="/login" className="text-primary hover:underline font-medium">
+                                    {t.signIn}
                                 </a>
                             </p>
                         </div>
-                        <p className="text-xs text-muted-foreground text-center">Irresistible Agent Security</p>
+                        <p className="text-xs text-muted-foreground text-center">{t.footer}</p>
                     </CardFooter>
                 </Card>
             </motion.div>

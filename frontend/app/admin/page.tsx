@@ -15,6 +15,7 @@ import { AVAILABLE_ROLES } from "@/lib/dashboard-config";
 import DeepResearch from "@/components/deep-research";
 import { FileUploader } from "@/components/file-uploader";
 import { ChurchProfileEditor } from "@/components/church-profile-editor";
+import { DocumentLibrary } from "@/components/document-library";
 
 interface UserData {
     id: string;
@@ -320,6 +321,22 @@ export default function AdminPage() {
                             </CardHeader>
                             <CardContent>
                                 <FileUploader />
+                            </CardContent>
+                        </Card>
+
+                        {/* Document Library Card */}
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <Search className="h-5 w-5 text-primary" />
+                                    Biblioteca de Conocimiento
+                                </CardTitle>
+                                <CardDescription>
+                                    Todos los documentos indexados en el cerebro del agente. Filtra por tipo y elimina los que ya no necesites.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <DocumentLibrary />
                             </CardContent>
                         </Card>
                     </TabsContent>

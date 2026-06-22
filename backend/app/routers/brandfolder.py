@@ -5,13 +5,14 @@ from ..models.brandfolder import SearchRequest, IngestRequest
 from ..services.brandfolder_service import BrandfolderAPI
 from ..services.rag_service import RAGManager
 from ..services.chat_service import ChatService
+from .auth import verify_active_user, verify_admin_role
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 @router.post("/search")
-async def search_assets(request: SearchRequest):
+async def search_assets(request: SearchRequest, current_user: dict = Depends(verify_active_user)):
     try:
         api = BrandfolderAPI()
         # Use first brandfolder if not specified
@@ -37,7 +38,7 @@ async def search_assets(request: SearchRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/ingest")
-async def ingest_assets(request: IngestRequest):
+async def ingest_assets(request: IngestRequest, admin: dict = Depends(verify_admin_role)):
     try:
         api = BrandfolderAPI()
         rag = RAGManager()
@@ -127,7 +128,7 @@ async def ingest_assets(request: IngestRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/stats")
-async def get_stats():
+async def get_stats(current_user: dict = Depends(verify_active_user)):
     """Returns statistics about the knowledge base."""
     try:
         rag = RAGManager()
@@ -153,7 +154,7 @@ class ResearchStartRequest(BaseModel):
     username: str
 
 @router.post("/research/start")
-async def start_research(request: ResearchStartRequest):
+async def start_research(request: ResearchStartRequest, current_user: dict = Depends(verify_active_user)):
     try:
         from ..services.research_service import ResearchService
         service = ResearchService()
@@ -163,7 +164,7 @@ async def start_research(request: ResearchStartRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/research/history")
-async def get_research_history(username: str):
+async def get_research_history(username: str, current_user: dict = Depends(verify_active_user)):
     try:
         from ..services.research_service import ResearchService
         service = ResearchService()
@@ -172,7 +173,7 @@ async def get_research_history(username: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/research/{session_id}")
-async def get_research_session(session_id: str):
+async def get_research_session(session_id: str, current_user: dict = Depends(verify_active_user)):
     try:
         from ..services.research_service import ResearchService
         service = ResearchService()
@@ -187,7 +188,7 @@ async def get_research_session(session_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/research/{session_id}/execute")
-async def execute_research(session_id: str, background_tasks: fastapi.BackgroundTasks):
+async def execute_research(session_id: str, background_tasks: fastapi.BackgroundTasks, current_user: dict = Depends(verify_active_user)):
     try:
         from ..services.research_service import ResearchService
         service = ResearchService()
@@ -200,7 +201,7 @@ async def execute_research(session_id: str, background_tasks: fastapi.Background
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/research/{session_id}/sync")
-async def sync_research_to_kb(session_id: str):
+async def sync_research_to_kb(session_id: str, current_user: dict = Depends(verify_active_user)):
     """
     Manually syncs a session's assets to the Knowledge Base.
     Useful for ensuring everything is in RAG/Brain.
@@ -215,7 +216,7 @@ async def sync_research_to_kb(session_id: str):
 
 
 @router.get("/research/debug/diagnose")
-async def debug_research_config():
+async def debug_research_config(admin: dict = Depends(verify_admin_role)):
     """Diagnostic endpoint to check why Research might be failing."""
     import os
     import sqlite3

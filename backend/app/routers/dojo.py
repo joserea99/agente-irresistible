@@ -56,7 +56,8 @@ def get_dojo_service():
 @router.get("/scenarios")
 async def get_scenarios(
     language: str = "es",
-    dojo_service: DojoService = Depends(get_dojo_service)
+    dojo_service: DojoService = Depends(get_dojo_service),
+    current_user: dict = Depends(verify_active_user)
 ):
     """
     Get list of available Dojo scenarios
@@ -67,7 +68,8 @@ async def get_scenarios(
 @router.post("/create")
 async def create_custom_scenario(
     request: CreateScenarioRequest,
-    dojo_service: DojoService = Depends(get_dojo_service)
+    dojo_service: DojoService = Depends(get_dojo_service),
+    current_user: dict = Depends(verify_active_user)
 ):
     """
     Generate a custom scenario from a description
@@ -85,7 +87,8 @@ async def create_custom_scenario(
 @router.post("/start")
 async def start_scenario(
     request: StartScenarioRequest,
-    dojo_service: DojoService = Depends(get_dojo_service)
+    dojo_service: DojoService = Depends(get_dojo_service),
+    current_user: dict = Depends(verify_active_user)
 ):
     """
     Start a Dojo scenario and get the opening line
@@ -103,7 +106,8 @@ async def start_scenario(
 @router.post("/message")
 async def send_roleplay_message(
     request: RoleplayRequest,
-    dojo_service: DojoService = Depends(get_dojo_service)
+    dojo_service: DojoService = Depends(get_dojo_service),
+    current_user: dict = Depends(verify_active_user)
 ):
     """
     Send a message in the roleplay and get character's response
@@ -128,7 +132,8 @@ async def send_roleplay_message(
 @router.post("/evaluate")
 async def evaluate_performance(
     request: EvaluateRequest,
-    dojo_service: DojoService = Depends(get_dojo_service)
+    dojo_service: DojoService = Depends(get_dojo_service),
+    current_user: dict = Depends(verify_active_user)
 ):
     """
     Evaluate the user's performance in the roleplay

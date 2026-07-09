@@ -60,7 +60,7 @@ except ImportError:
 # --- Routes ---
 @app.get("/")
 def read_root():
-    return {"status": "online", "message": "Irresistible Agent API v2.1 is running"}
+    return {"status": "online", "message": "Irresistible Agent API v2.2 is running"}
 
 @app.get("/health")
 def health_check():

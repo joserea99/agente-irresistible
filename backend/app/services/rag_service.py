@@ -18,9 +18,21 @@ class RAGManager:
             logger.error(f"Error checking doc existence: {e}")
             return False
 
-    def add_document(self, content, source_url, title="Unknown"):
+    def add_document(self, content, source_url, title="Unknown", metadata=None):
         """Ingests a document into the brain."""
-        return self.store.store_document(content, source_url, title)
+        return self.store.store_document(content, source_url, title, metadata=metadata)
+
+    def get_document_meta(self, source_url):
+        """Return the stored document row (id, metadata) for a source, or None."""
+        return self.store.get_document_meta(source_url)
+
+    def delete_document(self, source_url):
+        """Delete a document and all its chunks by source URL."""
+        return self.store.delete_document(source_url)
+
+    def find_thin_documents(self):
+        """List Brandfolder documents indexed name-only (no extracted body)."""
+        return self.store.find_thin_document_ids()
 
     def search(self, query, n_results=3):
         """Retrieves relevant context for a query."""

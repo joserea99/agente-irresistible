@@ -34,6 +34,9 @@ export default function AdminPage() {
     const [syncStatus, setSyncStatus] = useState<any>(null);
     const [isSyncing, setIsSyncing] = useState(false);
     const [syncMessage, setSyncMessage] = useState("");
+    const [coverage, setCoverage] = useState<any>(null);
+    const [isReindexing, setIsReindexing] = useState(false);
+    const [reindexMessage, setReindexMessage] = useState("");
 
     // Protected Route Check
     useEffect(() => {
@@ -57,6 +60,7 @@ export default function AdminPage() {
         if (user?.role === 'admin') {
             fetchUsers();
             fetchSyncStatus();
+            fetchCoverage();
         }
     }, [user]);
 
@@ -66,6 +70,31 @@ export default function AdminPage() {
             setSyncStatus(response.data);
         } catch (error) {
             console.error("Failed to fetch sync status", error);
+        }
+    };
+
+    const fetchCoverage = async () => {
+        try {
+            const response = await api.get("/sync/coverage");
+            setCoverage(response.data);
+        } catch (error) {
+            console.error("Failed to fetch coverage", error);
+        }
+    };
+
+    const handleReindexThin = async () => {
+        const n = coverage?.thin_documents ?? 0;
+        if (!confirm(`Se re-indexarán ${n} documentos incompletos (Word/PowerPoint sin texto). Se borran y se vuelven a ingerir con el extractor nuevo. Puede tardar. ¿Continuar?`)) return;
+        setIsReindexing(true);
+        setReindexMessage("");
+        try {
+            const response = await api.post("/sync/reindex-thin", {});
+            setReindexMessage("🧹 " + response.data.message);
+            setTimeout(() => { fetchSyncStatus(); fetchCoverage(); }, 4000);
+        } catch (error) {
+            setReindexMessage("❌ Error al lanzar el re-indexado. Revisa los logs.");
+        } finally {
+            setIsReindexing(false);
         }
     };
 
@@ -308,6 +337,59 @@ export default function AdminPage() {
                                 {syncMessage && (
                                     <p className="text-sm font-medium mt-1">{syncMessage}</p>
                                 )}
+                            </CardContent>
+                        </Card>
+
+                        {/* Coverage / Re-index Card */}
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <Search className="h-5 w-5 text-primary" />
+                                    Cobertura del Conocimiento
+                                </CardTitle>
+                                <CardDescription>
+                                    Documentos indexados con texto completo vs. los que quedaron &quot;solo con el nombre&quot;
+                                    (Word/PowerPoint que antes no se leían). Re-indexarlos los vuelve a procesar con el extractor nuevo.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                {coverage && !coverage.error && (
+                                    <div className="grid grid-cols-3 gap-3">
+                                        <div className="rounded-lg bg-muted/50 p-4">
+                                            <div className="text-2xl font-bold">{coverage.total_documents ?? 0}</div>
+                                            <div className="text-xs text-muted-foreground">Documentos totales</div>
+                                        </div>
+                                        <div className="rounded-lg bg-green-500/10 p-4">
+                                            <div className="text-2xl font-bold text-green-600">{coverage.rich_documents ?? 0}</div>
+                                            <div className="text-xs text-muted-foreground">Con texto completo ({coverage.coverage_pct ?? 0}%)</div>
+                                        </div>
+                                        <div className="rounded-lg bg-amber-500/10 p-4">
+                                            <div className="text-2xl font-bold text-amber-600">{coverage.thin_documents ?? 0}</div>
+                                            <div className="text-xs text-muted-foreground">Solo con nombre</div>
+                                        </div>
+                                    </div>
+                                )}
+                                {coverage?.error && (
+                                    <p className="text-sm text-destructive">No se pudo calcular la cobertura: {coverage.error}</p>
+                                )}
+                                <div className="flex items-center gap-4">
+                                    <Button
+                                        onClick={handleReindexThin}
+                                        disabled={isReindexing || !coverage || (coverage?.thin_documents ?? 0) === 0 || syncStatus?.status === "running"}
+                                        variant="outline"
+                                        className="flex items-center gap-2"
+                                    >
+                                        {isReindexing ? (
+                                            <><Loader2 className="h-4 w-4 animate-spin" /> Lanzando...</>
+                                        ) : (
+                                            <><RefreshCw className="h-4 w-4" /> Re-indexar incompletos</>
+                                        )}
+                                    </Button>
+                                    <Button variant="ghost" size="sm" onClick={fetchCoverage}>
+                                        Recalcular
+                                    </Button>
+                                </div>
+                                {reindexMessage && <p className="text-sm font-medium mt-1">{reindexMessage}</p>}
                             </CardContent>
                         </Card>
 

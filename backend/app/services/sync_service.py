@@ -136,16 +136,43 @@ def extract_text_from_document(path: str, mimetype: str = "") -> str:
     return ""
 
 
-def _asset_already_indexed(c, asset_id: str) -> bool:
+def _ensure_bf_updated_at_column(conn):
+    """Add the bf_updated_at column to research_assets if it isn't there yet."""
+    c = conn.cursor()
+    try:
+        cols = [row[1] for row in c.execute("PRAGMA table_info(research_assets)").fetchall()]
+        if cols and "bf_updated_at" not in cols:
+            c.execute("ALTER TABLE research_assets ADD COLUMN bf_updated_at TEXT")
+            conn.commit()
+    except Exception as e:
+        print(f"⚠️  Could not ensure bf_updated_at column: {e}")
+
+
+def _asset_indexed_ts(c, asset_id: str):
     """
-    Checks if an asset has already been successfully processed.
-    Uses the local research_assets table as a fast first-level check.
+    Returns False if the asset is NOT indexed yet; otherwise returns the stored
+    Brandfolder updated_at timestamp (may be None for assets indexed before
+    change-detection existed).
     """
-    c.execute(
-        "SELECT id FROM research_assets WHERE asset_id=? AND status='indexed' LIMIT 1",
-        (asset_id,)
-    )
-    return c.fetchone() is not None
+    try:
+        c.execute(
+            "SELECT bf_updated_at FROM research_assets WHERE asset_id=? AND status='indexed' LIMIT 1",
+            (asset_id,),
+        )
+    except sqlite3.OperationalError:
+        c.execute(
+            "SELECT NULL FROM research_assets WHERE asset_id=? AND status='indexed' LIMIT 1",
+            (asset_id,),
+        )
+    row = c.fetchone()
+    if row is None:
+        return False
+    return row[0]
+
+
+def _asset_id_from_source(source: str) -> str:
+    """Extract the Brandfolder asset id from a workbench source URL."""
+    return (source or "").rstrip("/").split("/")[-1]
 
 
 def full_sync():
@@ -169,6 +196,7 @@ def full_sync():
 
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
+    _ensure_bf_updated_at_column(conn)
 
     # Create a log entry for this sync run
     c.execute(
@@ -178,7 +206,7 @@ def full_sync():
     log_id = c.lastrowid
     started_at = datetime.utcnow()
 
-    stats = {"total_found": 0, "new_indexed": 0, "skipped": 0, "failed": 0}
+    stats = {"total_found": 0, "new_indexed": 0, "skipped": 0, "failed": 0, "reindexed": 0}
 
     try:
         from .brandfolder_service import BrandfolderAPI
@@ -237,11 +265,7 @@ def full_sync():
             asset_id = info["id"]
             name = info["name"]
 
-            # --- DEDUPLICATION CHECK 1: Local SQLite ---
-            if _asset_already_indexed(c, asset_id):
-                print(f"⏭️  [AutoSync] Skipping (already indexed): {name}")
-                stats["skipped"] += 1
-                continue
+            current_ts = info.get("updated_at")
 
             # Determine asset type & URL
             asset_type = "document"
@@ -264,19 +288,34 @@ def full_sync():
 
             source_link = f"https://brandfolder.com/workbench/{asset_id}"
 
-            # --- DEDUPLICATION CHECK 2: Supabase Vector DB ---
-            if rag.document_exists(source_link):
+            # --- DEDUP + CHANGE DETECTION (fast SQLite check first) ---
+            stored_ts = _asset_indexed_ts(c, asset_id)
+            if stored_ts is not False:
+                # Already indexed. Skip when unchanged OR when we have no stored
+                # timestamp (legacy rows — do NOT re-process the whole library).
+                if (not stored_ts) or (stored_ts == current_ts):
+                    stats["skipped"] += 1
+                    continue
+                # Timestamp changed in Brandfolder → re-index this asset.
+                print(f"🔁 [AutoSync] Re-indexing changed asset: {name}")
+                rag.delete_document(source_link)
+                c.execute("DELETE FROM research_assets WHERE asset_id=?", (asset_id,))
+                conn.commit()
+                stats["reindexed"] += 1
+                # fall through to process
+            elif rag.document_exists(source_link):
+                # Present in the vector DB but not in local SQLite (e.g. after a
+                # volume reset) — record it and skip re-embedding.
                 print(f"⏭️  [AutoSync] Skipping (already in vector DB): {name}")
-                # Mark as indexed in SQLite so future syncs are faster
                 c.execute(
-                    "INSERT OR IGNORE INTO research_assets (session_id, asset_id, name, type, url, status) VALUES (?,?,?,?,?,?)",
-                    (session_id, asset_id, name, asset_type, url, "indexed")
+                    "INSERT OR IGNORE INTO research_assets (session_id, asset_id, name, type, url, status, bf_updated_at) VALUES (?,?,?,?,?,?,?)",
+                    (session_id, asset_id, name, asset_type, url, "indexed", current_ts)
                 )
                 conn.commit()
                 stats["skipped"] += 1
                 continue
 
-            # --- PROCESS NEW ASSET ---
+            # --- PROCESS NEW (or changed) ASSET ---
             try:
                 # Insert into DB with 'pending' status first
                 c.execute(
@@ -354,13 +393,13 @@ def full_sync():
                         print(f"⚠️  [AutoSync] Media processing failed for {name}: {e}")
                         content += f"\n\n[Extraction Failed: {e}]"
 
-                # Index to Vector DB
-                rag.add_document(content, source_link, title=name)
+                # Index to Vector DB (store Brandfolder updated_at for change detection)
+                rag.add_document(content, source_link, title=name, metadata={"bf_updated_at": current_ts})
 
                 # Mark as indexed in DB
                 c.execute(
-                    "UPDATE research_assets SET status='indexed', content=? WHERE id=?",
-                    (content, asset_row_id)
+                    "UPDATE research_assets SET status='indexed', content=?, bf_updated_at=? WHERE id=?",
+                    (content, current_ts, asset_row_id)
                 )
                 conn.commit()
                 stats["new_indexed"] += 1
@@ -382,7 +421,8 @@ def full_sync():
         conn.commit()
         print(
             f"🎉 [AutoSync] Sync complete! New: {stats['new_indexed']} | "
-            f"Skipped: {stats['skipped']} | Failed: {stats['failed']}"
+            f"Re-indexed: {stats['reindexed']} | Skipped: {stats['skipped']} | "
+            f"Failed: {stats['failed']}"
         )
 
     except Exception as e:
@@ -408,3 +448,87 @@ def get_last_sync_status() -> dict:
     row = c.fetchone()
     conn.close()
     return dict(row) if row else {"status": "never_run"}
+
+
+def coverage_stats() -> dict:
+    """
+    Report knowledge-base coverage: total documents vs. how many Brandfolder
+    documents are indexed "name-only" (no extracted body). Read-only.
+    """
+    try:
+        from .rag_service import RAGManager
+        rag = RAGManager()
+        total = rag.store.count_documents()
+        thin = rag.find_thin_documents()
+        return {
+            "total_documents": total,
+            "thin_documents": len(thin),
+            "rich_documents": max(total - len(thin), 0),
+            "coverage_pct": round(100 * (total - len(thin)) / total, 1) if total else 0,
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def reindex_thin(limit: int = None, dry_run: bool = False) -> dict:
+    """
+    Retroactively fix documents indexed "name-only" (no extracted body): delete
+    them and clear their local markers, then run full_sync() to re-ingest them
+    with the multi-format extractor (Word/PowerPoint/PDF + description + tags).
+
+    Args:
+        limit: process at most this many thin documents (batching). None = all.
+        dry_run: only count/report, delete nothing.
+    """
+    global _sync_running
+    if _sync_running and not dry_run:
+        return {"status": "busy", "message": "A sync is already running."}
+
+    try:
+        from .rag_service import RAGManager
+        rag = RAGManager()
+        thin = rag.find_thin_documents()
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+    total_thin = len(thin)
+    if limit:
+        thin = thin[:limit]
+
+    if dry_run:
+        return {
+            "status": "dry_run",
+            "thin_total": total_thin,
+            "would_reindex": len(thin),
+            "sample_sources": [t["source"] for t in thin[:20]],
+        }
+
+    if not thin:
+        return {"status": "nothing_to_do", "thin_total": 0}
+
+    # Delete the thin documents and clear their local 'indexed' markers so the
+    # subsequent full_sync re-processes them from scratch.
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    _ensure_bf_updated_at_column(conn)
+    cleared = 0
+    for t in thin:
+        try:
+            rag.delete_document(t["source"])
+            asset_id = _asset_id_from_source(t["source"])
+            c.execute("DELETE FROM research_assets WHERE asset_id=?", (asset_id,))
+            cleared += 1
+        except Exception as e:
+            print(f"⚠️  [Reindex] Could not clear {t['source']}: {e}")
+    conn.commit()
+    conn.close()
+
+    print(f"🧹 [Reindex] Cleared {cleared} name-only documents. Running full_sync to re-ingest...")
+    full_sync()
+
+    return {
+        "status": "completed",
+        "thin_total": total_thin,
+        "cleared_and_reingested": cleared,
+        "note": "full_sync ran; re-check /sync/coverage for the new numbers.",
+    }

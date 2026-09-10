@@ -5,12 +5,23 @@ Provides admin endpoints to manually trigger and monitor the full library sync.
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from pydantic import BaseModel
+from typing import Optional
 
 from ..services.auth_service import verify_token
-from ..services.sync_service import full_sync, get_last_sync_status
+from ..services.sync_service import (
+    full_sync,
+    get_last_sync_status,
+    coverage_stats,
+    reindex_thin,
+)
 
 router = APIRouter()
 security = HTTPBearer()
+
+
+class ReindexRequest(BaseModel):
+    limit: Optional[int] = None  # cap how many name-only docs to re-ingest (batching)
 
 
 async def get_current_admin(credentials: HTTPAuthorizationCredentials = Depends(security)):
@@ -46,3 +57,31 @@ async def get_sync_status(admin: dict = Depends(get_current_admin)):
     """
     status = get_last_sync_status()
     return status
+
+
+@router.get("/coverage")
+async def get_coverage(admin: dict = Depends(get_current_admin)):
+    """
+    Knowledge-base coverage: total documents vs. how many are indexed
+    'name-only' (no extracted body). Read-only, safe to call anytime.
+    """
+    return coverage_stats()
+
+
+@router.post("/reindex-thin")
+async def trigger_reindex_thin(
+    request: ReindexRequest,
+    background_tasks: BackgroundTasks,
+    admin: dict = Depends(get_current_admin),
+):
+    """
+    Re-ingest documents indexed 'name-only' (Word/PowerPoint that previously
+    yielded no text) using the new multi-format extractor. Runs in the background.
+    Pass an optional `limit` to process in controlled batches.
+    """
+    background_tasks.add_task(reindex_thin, request.limit, False)
+    return {
+        "message": "🧹 Re-indexado de documentos incompletos iniciado en segundo plano.",
+        "note": "Borra los 'solo nombre' y los vuelve a ingerir con el extractor nuevo. Revisa /sync/coverage al terminar.",
+        "limit": request.limit,
+    }

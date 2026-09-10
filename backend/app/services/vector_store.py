@@ -171,6 +171,92 @@ class VectorStoreService:
 
         return True
 
+    def get_document_meta(self, source: str) -> Optional[Dict]:
+        """Return the stored document row (id, metadata) for a source, or None."""
+        if not self.supabase:
+            return None
+        try:
+            res = self.supabase.table("documents").select("id, metadata").eq("source", source).limit(1).execute()
+            return res.data[0] if res.data else None
+        except Exception as e:
+            logger.error(f"Error fetching document meta for {source}: {e}")
+            return None
+
+    def delete_document(self, source: str) -> bool:
+        """Delete a document and all of its chunks, addressed by source URL."""
+        if not self.supabase:
+            return False
+        try:
+            res = self.supabase.table("documents").select("id").eq("source", source).execute()
+            if not res.data:
+                return False
+            for row in res.data:
+                doc_id = row["id"]
+                self.supabase.table("document_chunks").delete().eq("document_id", doc_id).execute()
+                self.supabase.table("documents").delete().eq("id", doc_id).execute()
+            return True
+        except Exception as e:
+            logger.error(f"Error deleting document {source}: {e}")
+            return False
+
+    def find_thin_document_ids(self) -> List[Dict]:
+        """
+        Find Brandfolder documents indexed WITHOUT an extracted body ("name-only"):
+        none of their chunks contain a rich-content marker. Efficient — the marker
+        queries return only ids, then we diff against all Brandfolder documents.
+        Returns a list of {"id", "source"}.
+        """
+        if not self.supabase:
+            return []
+
+        rich_ids = set()
+        markers = ["--- DOCUMENT TEXT ---", "--- TRANSCRIPT ---", "DESCRIPCIÓN DE LA IMAGEN"]
+        for marker in markers:
+            start = 0
+            page = 1000
+            while True:
+                try:
+                    res = self.supabase.table("document_chunks").select("document_id")\
+                        .ilike("content", f"%{marker}%").range(start, start + page - 1).execute()
+                except Exception as e:
+                    logger.error(f"thin-scan marker query failed ({marker}): {e}")
+                    break
+                rows = res.data or []
+                for r in rows:
+                    rich_ids.add(r["document_id"])
+                if len(rows) < page:
+                    break
+                start += page
+
+        thin = []
+        start = 0
+        page = 1000
+        while True:
+            try:
+                res = self.supabase.table("documents").select("id, source")\
+                    .ilike("source", "%brandfolder.com/workbench/%").range(start, start + page - 1).execute()
+            except Exception as e:
+                logger.error(f"thin-scan documents query failed: {e}")
+                break
+            rows = res.data or []
+            for r in rows:
+                if r["id"] not in rich_ids:
+                    thin.append({"id": r["id"], "source": r["source"]})
+            if len(rows) < page:
+                break
+            start += page
+
+        return thin
+
+    def count_documents(self) -> int:
+        if not self.supabase:
+            return 0
+        try:
+            res = self.supabase.table("documents").select("id", count="exact", head=True).execute()
+            return res.count or 0
+        except Exception:
+            return 0
+
     def search_similar(self, query: str, limit: int = 5) -> str:
         """
         Searches for context relevant to the query.

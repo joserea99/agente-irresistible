@@ -347,9 +347,10 @@ class BrandfolderAPI:
         atts_rel = rels.get("attachments") or {}
         attachments = atts_rel.get("data") or []
         
-        # Look in included data for attachment details
+        # Look in included data for attachment details + tags
         for att in included:
-            if att.get("type") == "attachments":
+            item_type = att.get("type")
+            if item_type == "attachments":
                 att_attrs = att.get("attributes", {})
                 info["attachments"].append({
                     "id": att.get("id"),
@@ -359,7 +360,11 @@ class BrandfolderAPI:
                     "size": att_attrs.get("size"),
                     "extension": att_attrs.get("extension") or ""
                 })
-        
+            elif item_type == "tags":
+                tag_name = (att.get("attributes", {}) or {}).get("name")
+                if tag_name:
+                    info["tags"].append(tag_name)
+
         return info
     
     def get_all_content(self, brandfolder_id: str, topic_filter: Optional[str] = None) -> Dict[str, Any]:

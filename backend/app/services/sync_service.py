@@ -47,6 +47,95 @@ def _init_sync_log_table():
     conn.close()
 
 
+def _clean_html(text: str) -> str:
+    """Strip HTML tags from an asset description (Brandfolder stores rich HTML)."""
+    if not text:
+        return ""
+    if "<" not in text:
+        return text.strip()
+    try:
+        from bs4 import BeautifulSoup
+        return BeautifulSoup(text, "html.parser").get_text(" ", strip=True)
+    except Exception:
+        return text.strip()
+
+
+def extract_text_from_document(path: str, mimetype: str = "") -> str:
+    """
+    Extract text from a downloaded document, dispatching by type:
+    PDF (pypdf), Word .docx (python-docx), PowerPoint .pptx (python-pptx),
+    or plain text/markdown/csv. Returns "" if nothing could be extracted.
+    """
+    mt = (mimetype or "").lower()
+    p = path.lower()
+
+    def _pdf():
+        import pypdf
+        reader = pypdf.PdfReader(path)
+        return "\n".join((pg.extract_text() or "") for pg in reader.pages)
+
+    def _docx():
+        from docx import Document
+        d = Document(path)
+        parts = [para.text for para in d.paragraphs if para.text.strip()]
+        for table in d.tables:
+            for row in table.rows:
+                cells = [cell.text.strip() for cell in row.cells if cell.text.strip()]
+                if cells:
+                    parts.append(" | ".join(cells))
+        return "\n".join(parts)
+
+    def _pptx():
+        from pptx import Presentation
+        prs = Presentation(path)
+        parts = []
+        for i, slide in enumerate(prs.slides, 1):
+            slide_parts = []
+            for shape in slide.shapes:
+                if shape.has_text_frame:
+                    txt = shape.text_frame.text.strip()
+                    if txt:
+                        slide_parts.append(txt)
+                if shape.has_table:
+                    for row in shape.table.rows:
+                        cells = [cell.text.strip() for cell in row.cells if cell.text.strip()]
+                        if cells:
+                            slide_parts.append(" | ".join(cells))
+            if slide.has_notes_slide and slide.notes_slide.notes_text_frame:
+                note = slide.notes_slide.notes_text_frame.text.strip()
+                if note:
+                    slide_parts.append(f"[Notas del orador: {note}]")
+            if slide_parts:
+                parts.append(f"[Diapositiva {i}]\n" + "\n".join(slide_parts))
+        return "\n\n".join(parts)
+
+    def _txt():
+        with open(path, "r", encoding="utf-8", errors="ignore") as f:
+            return f.read()
+
+    # Choose parser order from the mimetype/extension hint; if unknown, try all.
+    if "pdf" in mt or p.endswith(".pdf"):
+        order = [_pdf]
+    elif "wordprocessing" in mt or p.endswith(".docx"):
+        order = [_docx]
+    elif "presentation" in mt or p.endswith(".pptx"):
+        order = [_pptx]
+    elif "text" in mt or p.endswith((".txt", ".md", ".csv")):
+        order = [_txt]
+    else:
+        order = [_pdf, _docx, _pptx, _txt]  # unknown/missing mimetype: best effort
+
+    for fn in order:
+        try:
+            text = fn()
+            if text and text.strip():
+                return text.strip()
+        except Exception as e:
+            print(f"⚠️  {fn.__name__} extraction error: {e}")
+            continue
+    return ""
+
+
 def _asset_already_indexed(c, asset_id: str) -> bool:
     """
     Checks if an asset has already been successfully processed.
@@ -197,12 +286,25 @@ def full_sync():
                 conn.commit()
                 asset_row_id = c.lastrowid
 
+                # Base content: name + type + the asset's Brandfolder description (HTML stripped)
                 content = f"Asset: {name}\nType: {asset_type}"
+                desc = _clean_html(info.get("description") or "")
+                if desc:
+                    content += f"\nDescripción: {desc}"
 
                 if asset_type in ["video", "audio", "document", "image"]:
                     try:
                         fresh_details = bf_api.get_asset_details(asset_id)
                         fresh_info = bf_api.extract_asset_info(fresh_details)
+
+                        # Add tags (only available from the detailed asset fetch)
+                        if fresh_info.get("tags"):
+                            content += "\nTags: " + ", ".join(fresh_info["tags"])
+                        # If the description was empty in the list view, try the fresh one
+                        if not desc:
+                            fresh_desc = _clean_html(fresh_info.get("description") or "")
+                            if fresh_desc:
+                                content += f"\nDescripción: {fresh_desc}"
 
                         fresh_url = None
                         fresh_mime = ""
@@ -217,7 +319,10 @@ def full_sync():
                             if asset_type == "image" and "image" in mimetype:
                                 fresh_url = att.get("url"); fresh_mime = mimetype
                                 break
-                            if asset_type == "document" and any(x in mimetype for x in ["pdf", "document", "text"]):
+                            if asset_type == "document" and any(x in mimetype for x in [
+                                "pdf", "wordprocessing", "presentation", "officedocument",
+                                "document", "msword", "ms-powerpoint", "text",
+                            ]):
                                 fresh_url = att.get("url"); fresh_mime = mimetype
                                 break
 
@@ -239,18 +344,11 @@ def full_sync():
                                     )
                                     content += f"\n\n--- DESCRIPCIÓN DE LA IMAGEN (IA) ---\n{caption}"
                                 elif asset_type == "document":
-                                    import pypdf
-                                    try:
-                                        reader = pypdf.PdfReader(local_path)
-                                        pdf_text = ""
-                                        for page in reader.pages:
-                                            extracted = page.extract_text()
-                                            if extracted:
-                                                pdf_text += extracted + "\n"
-                                        if pdf_text.strip():
-                                            content += f"\n\n--- DOCUMENT TEXT ---\n{pdf_text}"
-                                    except Exception as e:
-                                        print(f"⚠️  PDF parse error for {name}: {e}")
+                                    doc_text = extract_text_from_document(local_path, fresh_mime)
+                                    if doc_text.strip():
+                                        content += f"\n\n--- DOCUMENT TEXT ---\n{doc_text}"
+                                    else:
+                                        print(f"⚠️  Sin texto extraíble de: {name} ({fresh_mime or 'mimetype desconocido'})")
                                 os.remove(local_path)
                     except Exception as e:
                         print(f"⚠️  [AutoSync] Media processing failed for {name}: {e}")

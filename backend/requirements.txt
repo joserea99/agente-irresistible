@@ -12,6 +12,7 @@ passlib[bcrypt]
 youtube-transcript-api
 beautifulsoup4
 python-docx
+python-pptx
 pypdf
 supabase
 stripe

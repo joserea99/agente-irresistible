@@ -52,8 +52,17 @@ class BrandfolderAPI:
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:
-            print(f"❌ API Error: {e}")
-            return {"error": str(e), "data": []}
+            status = None
+            body = ""
+            resp = getattr(e, "response", None)
+            if resp is not None:
+                status = resp.status_code
+                try:
+                    body = resp.text[:300]
+                except Exception:
+                    pass
+            print(f"❌ Brandfolder API Error [{status}] on {endpoint}: {e} | {body}")
+            return {"error": str(e), "status": status, "data": []}
     
     def get_brandfolders(self) -> List[Dict]:
         """
@@ -63,7 +72,14 @@ class BrandfolderAPI:
             List of brandfolder objects with id, name, etc.
         """
         result = self._request("GET", "/brandfolders")
-        return result.get("data", [])
+        data = result.get("data", [])
+        if not data:
+            print(
+                f"⚠️ Brandfolder /brandfolders devolvió 0 bibliotecas "
+                f"(status={result.get('status')}, error={result.get('error')}). "
+                f"Causa probable: BRANDFOLDER_API_KEY inválida/expirada o sin acceso."
+            )
+        return data
     
     def get_brandfolder_by_slug(self, slug: str) -> Optional[Dict]:
         """

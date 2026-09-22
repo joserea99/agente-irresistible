@@ -98,46 +98,77 @@ class BrandfolderAPI:
             print(f"   fallback de organizaciones falló: {e}")
 
         if not data:
+            print("⚠️ /brandfolders y organizaciones vacíos; intentando vía /collections...")
+            try:
+                cols = self._request("GET", "/collections").get("data", []) or []
+                if cols:
+                    print(f"   colecciones visibles: {len(cols)}")
+                    # Sort so that *All ICN Assets or all-icn is first
+                    cols.sort(key=lambda c: 0 if "all" in (c.get("attributes", {}).get("slug", "") or "").lower() else 1)
+                    for col in cols:
+                        if col.get("id") and col["id"] not in seen:
+                            seen.add(col["id"])
+                            data.append(col)
+            except Exception as e:
+                print(f"   fallback de colecciones falló: {e}")
+
+        if not data:
             print(
                 "⚠️ Brandfolder no devolvió NINGUNA biblioteca — ni por acceso directo "
-                "ni por organización. La API key autentica (HTTP 200) pero la cuenta dueña "
-                "de la llave ya NO tiene acceso a ninguna biblioteca. Verifica en Brandfolder "
+                "ni por organización ni por colecciones. La API key autentica (HTTP 200) pero la cuenta dueña "
+                "de la llave ya NO tiene acceso. Verifica en Brandfolder "
                 "que esa cuenta siga siendo miembro del Brandfolder con los assets."
             )
         return data
     
     def get_brandfolder_by_slug(self, slug: str) -> Optional[Dict]:
         """
-        Get a specific brandfolder by its slug (URL name).
+        Get a specific brandfolder or collection by its slug (URL name).
         
         Args:
             slug: The brandfolder slug (e.g., 'irresistiblechurchnetwork')
         """
         brandfolders = self.get_brandfolders()
         for bf in brandfolders:
-            if bf.get("attributes", {}).get("slug") == slug:
+            bf_slug = bf.get("attributes", {}).get("slug")
+            if bf_slug == slug:
                 return bf
-        return None
+        # If looking for 'irresistiblechurchnetwork', accept 'all-icn' or the first collection
+        if slug == "irresistiblechurchnetwork":
+            for bf in brandfolders:
+                if bf.get("attributes", {}).get("slug") in ("all-icn", "irresistiblechurchnetwork"):
+                    return bf
+        return brandfolders[0] if brandfolders else None
     
     def get_sections(self, brandfolder_id: str) -> List[Dict]:
         """
-        Get all sections within a brandfolder.
+        Get all sections within a brandfolder or collection.
         
         Args:
-            brandfolder_id: The ID of the brandfolder
+            brandfolder_id: The ID of the brandfolder or collection
         """
         result = self._request("GET", f"/brandfolders/{brandfolder_id}/sections")
-        return result.get("data", [])
+        sections = result.get("data", [])
+        if not sections:
+            # Fallback to collection sections
+            col_result = self._request("GET", f"/collections/{brandfolder_id}/sections")
+            sections = col_result.get("data", []) or []
+        return sections
     
-    def get_collections(self, brandfolder_id: str) -> List[Dict]:
+    def get_collections(self, brandfolder_id: str = None) -> List[Dict]:
         """
-        Get all collections within a brandfolder.
+        Get all collections within a brandfolder or for the authenticated user.
         
         Args:
-            brandfolder_id: The ID of the brandfolder
+            brandfolder_id: The ID of the brandfolder (optional)
         """
-        result = self._request("GET", f"/brandfolders/{brandfolder_id}/collections")
-        return result.get("data", [])
+        if brandfolder_id:
+            result = self._request("GET", f"/brandfolders/{brandfolder_id}/collections")
+            cols = result.get("data", [])
+            if cols:
+                return cols
+        result = self._request("GET", "/collections")
+        return result.get("data", []) or []
     
     def get_assets(self, section_id: str = None, collection_id: str = None, 
                    brandfolder_id: str = None, include_attachments: bool = True,
@@ -167,6 +198,13 @@ class BrandfolderAPI:
         
         # Initial request
         result = self._request("GET", endpoint, params)
+        if brandfolder_id and (result.get("error") or not result.get("data")):
+            # Fallback to collection if brandfolder endpoint failed
+            col_endpoint = f"/collections/{brandfolder_id}/assets"
+            col_result = self._request("GET", col_endpoint, params)
+            if col_result.get("data"):
+                result = col_result
+                endpoint = col_endpoint
         
         # Map included attachments to assets
         assets = result.get("data") or []
@@ -229,7 +267,14 @@ class BrandfolderAPI:
             params["include"] = "attachments"
         
         # Initial Request
-        result = self._request("GET", f"/brandfolders/{brandfolder_id}/assets", params)
+        endpoint = f"/brandfolders/{brandfolder_id}/assets"
+        result = self._request("GET", endpoint, params)
+        if result.get("error") or not result.get("data"):
+            col_endpoint = f"/collections/{brandfolder_id}/assets"
+            col_result = self._request("GET", col_endpoint, params)
+            if col_result.get("data"):
+                result = col_result
+                endpoint = col_endpoint
         
         # Map included attachments to assets
         assets = result.get("data") or []
@@ -243,7 +288,7 @@ class BrandfolderAPI:
             print(f"🔎 Fetching search page {next_page}...")
             
             params["page"] = next_page
-            result = self._request("GET", f"/brandfolders/{brandfolder_id}/assets", params)
+            result = self._request("GET", endpoint, params)
             
             new_assets = result.get("data") or []
             new_included = result.get("included") or []

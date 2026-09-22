@@ -72,12 +72,37 @@ class BrandfolderAPI:
             List of brandfolder objects with id, name, etc.
         """
         result = self._request("GET", "/brandfolders")
-        data = result.get("data", [])
+        data = result.get("data", []) or []
+        if data:
+            return data
+
+        # Direct listing was empty. Some accounts only expose brandfolders through
+        # their organization(s), so try that path before giving up.
+        print("⚠️ /brandfolders vacío; intentando vía organizaciones...")
+        try:
+            orgs = self._request("GET", "/organizations").get("data", []) or []
+            print(f"   organizaciones visibles: {len(orgs)}")
+            seen = set()
+            for org in orgs:
+                org_id = org.get("id")
+                if not org_id:
+                    continue
+                org_bfs = self._request("GET", f"/organizations/{org_id}/brandfolders").get("data", []) or []
+                org_name = org.get("attributes", {}).get("name", org_id)
+                print(f"   org '{org_name}' ({org_id}): {len(org_bfs)} brandfolder(s)")
+                for bf in org_bfs:
+                    if bf.get("id") and bf["id"] not in seen:
+                        seen.add(bf["id"])
+                        data.append(bf)
+        except Exception as e:
+            print(f"   fallback de organizaciones falló: {e}")
+
         if not data:
             print(
-                f"⚠️ Brandfolder /brandfolders devolvió 0 bibliotecas "
-                f"(status={result.get('status')}, error={result.get('error')}). "
-                f"Causa probable: BRANDFOLDER_API_KEY inválida/expirada o sin acceso."
+                "⚠️ Brandfolder no devolvió NINGUNA biblioteca — ni por acceso directo "
+                "ni por organización. La API key autentica (HTTP 200) pero la cuenta dueña "
+                "de la llave ya NO tiene acceso a ninguna biblioteca. Verifica en Brandfolder "
+                "que esa cuenta siga siendo miembro del Brandfolder con los assets."
             )
         return data
     

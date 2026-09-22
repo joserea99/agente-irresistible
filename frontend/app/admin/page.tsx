@@ -369,6 +369,22 @@ export default function AdminPage() {
                                         </div>
                                     </div>
                                 )}
+                                {coverage?.by_content && (
+                                    <div className="rounded-lg bg-muted/40 p-4 text-sm">
+                                        <p className="font-medium mb-2">Por tipo de contenido indexado:</p>
+                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                            <div><span className="text-lg font-bold">{coverage.by_content.transcribed_media ?? 0}</span><br /><span className="text-xs text-muted-foreground">🎥 Video/audio transcrito</span></div>
+                                            <div><span className="text-lg font-bold">{coverage.by_content.document_text ?? 0}</span><br /><span className="text-xs text-muted-foreground">📄 Texto de documento</span></div>
+                                            <div><span className="text-lg font-bold">{coverage.by_content.image_described ?? 0}</span><br /><span className="text-xs text-muted-foreground">🖼️ Imagen descrita</span></div>
+                                            <div><span className="text-lg font-bold">{coverage.by_content.name_only ?? 0}</span><br /><span className="text-xs text-muted-foreground">📝 Solo nombre</span></div>
+                                        </div>
+                                        {typeof coverage.brandfolder_documents === "number" && (
+                                            <p className="text-xs text-muted-foreground mt-3">
+                                                De Brandfolder: {coverage.brandfolder_documents} documentos indexados.
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
                                 {coverage?.error && (
                                     <p className="text-sm text-destructive">No se pudo calcular la cobertura: {coverage.error}</p>
                                 )}

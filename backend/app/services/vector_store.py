@@ -199,19 +199,24 @@ class VectorStoreService:
             logger.error(f"Error deleting document {source}: {e}")
             return False
 
-    def find_thin_document_ids(self) -> List[Dict]:
+    def analyze_brandfolder_documents(self) -> Dict:
         """
-        Find Brandfolder documents indexed WITHOUT an extracted body ("name-only"):
-        none of their chunks contain a rich-content marker. Efficient — the marker
-        queries return only ids, then we diff against all Brandfolder documents.
-        Returns a list of {"id", "source"}.
+        Single pass over the knowledge base: detect which extraction marker each
+        Brandfolder document carries. Returns id sets per marker plus the list of
+        all Brandfolder documents, so callers can build a coverage breakdown or
+        the 'thin' (name-only) list without scanning twice.
         """
+        empty = {"bf_docs": [], "marker_ids": {}, "thin": []}
         if not self.supabase:
-            return []
+            return empty
 
-        rich_ids = set()
-        markers = ["--- DOCUMENT TEXT ---", "--- TRANSCRIPT ---", "DESCRIPCIÓN DE LA IMAGEN"]
-        for marker in markers:
+        marker_map = {
+            "transcript": "--- TRANSCRIPT ---",
+            "document_text": "--- DOCUMENT TEXT ---",
+            "image": "DESCRIPCIÓN DE LA IMAGEN",
+        }
+        marker_ids = {k: set() for k in marker_map}
+        for key, marker in marker_map.items():
             start = 0
             page = 1000
             while True:
@@ -219,16 +224,16 @@ class VectorStoreService:
                     res = self.supabase.table("document_chunks").select("document_id")\
                         .ilike("content", f"%{marker}%").range(start, start + page - 1).execute()
                 except Exception as e:
-                    logger.error(f"thin-scan marker query failed ({marker}): {e}")
+                    logger.error(f"marker scan failed ({key}): {e}")
                     break
                 rows = res.data or []
                 for r in rows:
-                    rich_ids.add(r["document_id"])
+                    marker_ids[key].add(r["document_id"])
                 if len(rows) < page:
                     break
                 start += page
 
-        thin = []
+        bf_docs = []
         start = 0
         page = 1000
         while True:
@@ -236,17 +241,23 @@ class VectorStoreService:
                 res = self.supabase.table("documents").select("id, source")\
                     .ilike("source", "%brandfolder.com/workbench/%").range(start, start + page - 1).execute()
             except Exception as e:
-                logger.error(f"thin-scan documents query failed: {e}")
+                logger.error(f"brandfolder documents scan failed: {e}")
                 break
             rows = res.data or []
-            for r in rows:
-                if r["id"] not in rich_ids:
-                    thin.append({"id": r["id"], "source": r["source"]})
+            bf_docs.extend(rows)
             if len(rows) < page:
                 break
             start += page
 
-        return thin
+        rich = set()
+        for s in marker_ids.values():
+            rich |= s
+        thin = [{"id": d["id"], "source": d["source"]} for d in bf_docs if d["id"] not in rich]
+        return {"bf_docs": bf_docs, "marker_ids": marker_ids, "thin": thin}
+
+    def find_thin_document_ids(self) -> List[Dict]:
+        """Brandfolder documents indexed name-only (no extracted body)."""
+        return self.analyze_brandfolder_documents()["thin"]
 
     def count_documents(self) -> int:
         if not self.supabase:

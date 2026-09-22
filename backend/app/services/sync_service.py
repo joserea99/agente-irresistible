@@ -459,12 +459,21 @@ def coverage_stats() -> dict:
         from .rag_service import RAGManager
         rag = RAGManager()
         total = rag.store.count_documents()
-        thin = rag.find_thin_documents()
+        analysis = rag.store.analyze_brandfolder_documents()
+        mids = analysis["marker_ids"]
+        thin = analysis["thin"]
         return {
             "total_documents": total,
+            "brandfolder_documents": len(analysis["bf_docs"]),
             "thin_documents": len(thin),
             "rich_documents": max(total - len(thin), 0),
             "coverage_pct": round(100 * (total - len(thin)) / total, 1) if total else 0,
+            "by_content": {
+                "transcribed_media": len(mids.get("transcript", set())),
+                "document_text": len(mids.get("document_text", set())),
+                "image_described": len(mids.get("image", set())),
+                "name_only": len(thin),
+            },
         }
     except Exception as e:
         return {"error": str(e)}

@@ -14,6 +14,7 @@ from ..services.sync_service import (
     get_last_sync_status,
     coverage_stats,
     reindex_thin,
+    diagnose_coverage,
 )
 
 router = APIRouter()
@@ -66,6 +67,17 @@ async def get_coverage(admin: dict = Depends(get_current_admin)):
     'name-only' (no extracted body). Read-only, safe to call anytime.
     """
     return coverage_stats()
+
+
+@router.get("/diagnose")
+async def get_diagnose(admin: dict = Depends(get_current_admin)):
+    """
+    Live Brandfolder reachability audit: per-collection reachable count vs. the
+    total Brandfolder declares, unique union, truncation flags, and the gap vs.
+    the umbrella collection. Read-only. May take several seconds (paginates the
+    whole library live).
+    """
+    return diagnose_coverage()
 
 
 @router.post("/reindex-thin")

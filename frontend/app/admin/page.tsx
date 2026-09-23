@@ -37,6 +37,8 @@ export default function AdminPage() {
     const [coverage, setCoverage] = useState<any>(null);
     const [isReindexing, setIsReindexing] = useState(false);
     const [reindexMessage, setReindexMessage] = useState("");
+    const [diagnosis, setDiagnosis] = useState<any>(null);
+    const [isDiagnosing, setIsDiagnosing] = useState(false);
 
     // Protected Route Check
     useEffect(() => {
@@ -95,6 +97,19 @@ export default function AdminPage() {
             setReindexMessage("❌ Error al lanzar el re-indexado. Revisa los logs.");
         } finally {
             setIsReindexing(false);
+        }
+    };
+
+    const handleDiagnose = async () => {
+        setIsDiagnosing(true);
+        setDiagnosis(null);
+        try {
+            const r = await api.get("/sync/diagnose");
+            setDiagnosis(r.data);
+        } catch (error) {
+            setDiagnosis({ error: "No se pudo diagnosticar la cobertura. Revisa los logs." });
+        } finally {
+            setIsDiagnosing(false);
         }
     };
 
@@ -401,11 +416,72 @@ export default function AdminPage() {
                                             <><RefreshCw className="h-4 w-4" /> Re-indexar incompletos</>
                                         )}
                                     </Button>
+                                    <Button
+                                        onClick={handleDiagnose}
+                                        disabled={isDiagnosing || syncStatus?.status === "running"}
+                                        variant="outline"
+                                        size="sm"
+                                        className="flex items-center gap-2"
+                                    >
+                                        {isDiagnosing ? (
+                                            <><Loader2 className="h-4 w-4 animate-spin" /> Diagnosticando...</>
+                                        ) : (
+                                            <><Search className="h-4 w-4" /> Diagnosticar cobertura</>
+                                        )}
+                                    </Button>
                                     <Button variant="ghost" size="sm" onClick={fetchCoverage}>
                                         Recalcular
                                     </Button>
                                 </div>
                                 {reindexMessage && <p className="text-sm font-medium mt-1">{reindexMessage}</p>}
+                                {diagnosis && !diagnosis.error && (
+                                    <div className="rounded-lg border border-border p-4 text-sm space-y-3">
+                                        <div className="flex flex-wrap items-center gap-6">
+                                            <div>
+                                                <span className="text-2xl font-bold">{diagnosis.unique_assets ?? 0}</span>
+                                                <span className="text-xs text-muted-foreground"> alcanzables por el sync</span>
+                                            </div>
+                                            <div>
+                                                <span className="text-2xl font-bold">{diagnosis.all_collection_total ?? "—"}</span>
+                                                <span className="text-xs text-muted-foreground"> reales en Brandfolder</span>
+                                            </div>
+                                            <div className={(diagnosis.missing_vs_all ?? 0) > 0 ? "text-amber-600 font-semibold" : "text-green-600 font-semibold"}>
+                                                {(diagnosis.missing_vs_all ?? 0) > 0
+                                                    ? `⚠️ Faltan ${diagnosis.missing_vs_all}`
+                                                    : "✓ Cobertura completa"}
+                                            </div>
+                                        </div>
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-xs">
+                                                <thead>
+                                                    <tr className="text-left text-muted-foreground">
+                                                        <th className="py-1 pr-3">Colección</th>
+                                                        <th className="py-1 pr-3">Alcanzados</th>
+                                                        <th className="py-1 pr-3">Total real</th>
+                                                        <th className="py-1">Estado</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {(diagnosis.collections ?? []).map((c: any) => (
+                                                        <tr key={c.id} className="border-t border-border/50">
+                                                            <td className="py-1 pr-3">{c.name}</td>
+                                                            <td className="py-1 pr-3">{c.collected}</td>
+                                                            <td className="py-1 pr-3">{c.api_total ?? "—"}</td>
+                                                            <td className="py-1">
+                                                                {c.truncated
+                                                                    ? <span className="text-red-600 font-semibold">Truncada ({c.truncation_mode})</span>
+                                                                    : <span className="text-green-600">OK</span>}
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                )}
+                                {diagnosis?.error && (
+                                    <p className="text-sm text-destructive">{diagnosis.error}</p>
+                                )}
                             </CardContent>
                         </Card>
 

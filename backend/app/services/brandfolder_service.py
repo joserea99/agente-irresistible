@@ -36,7 +36,10 @@ class BrandfolderAPI:
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
         }
-    
+        # Total the API declared for the LAST asset listing fetched (meta.total_count).
+        # Lets callers reconcile "how many did I collect" vs "how many exist".
+        self._last_total_count = None
+
     def _request(self, method: str, endpoint: str, params: Optional[Dict] = None) -> Dict[str, Any]:
         """Make an API request."""
         url = f"{BRANDFOLDER_API_BASE}{endpoint}"
@@ -63,7 +66,79 @@ class BrandfolderAPI:
                     pass
             print(f"❌ Brandfolder API Error [{status}] on {endpoint}: {e} | {body}")
             return {"error": str(e), "status": status, "data": []}
-    
+
+    @staticmethod
+    def _next_page_from_meta(result: Dict) -> Optional[int]:
+        """
+        Resolve the next page number from a Brandfolder response. The API is
+        inconsistent: sometimes meta.next_page, sometimes meta.pagination.next_page,
+        sometimes only links.next (a URL with ?page=). Check all three.
+        """
+        meta = result.get("meta") or {}
+        np = meta.get("next_page")
+        if np:
+            return np
+        pag = meta.get("pagination") or {}
+        if pag.get("next_page"):
+            return pag.get("next_page")
+        links = result.get("links") or {}
+        nxt = links.get("next")
+        if isinstance(nxt, str) and "page=" in nxt:
+            import re
+            m = re.search(r"[?&]page=(\d+)", nxt)
+            if m:
+                return int(m.group(1))
+        return None
+
+    def _fetch_page(self, endpoint: str, params: Dict, page: Optional[int] = None,
+                    max_attempts: int = 5) -> Dict[str, Any]:
+        """
+        Fetch a single page with exponential-backoff retries. A rate-limited or
+        transient 5xx page is retried instead of being silently dropped. Returns
+        the raw result dict (which still carries 'error' if every attempt failed).
+        """
+        page_params = dict(params)
+        if page is not None:
+            page_params["page"] = page
+        result = self._request("GET", endpoint, page_params)
+        attempts = 0
+        while result.get("error") and attempts < max_attempts:
+            attempts += 1
+            wait = min(2 ** attempts, 15)  # 2,4,8,15,15s — absorb Brandfolder rate limits
+            print(f"⚠️ {endpoint} page {page} error (retry {attempts}/{max_attempts}) in {wait}s: {result.get('error')}")
+            time.sleep(wait)
+            result = self._request("GET", endpoint, page_params)
+        return result
+
+    def _list_all(self, endpoint: str, params: Optional[Dict] = None) -> List[Dict]:
+        """
+        Fully paginate a listing endpoint (e.g. /collections). Prefers total_pages
+        when present; otherwise follows next_page. Never truncates on the first
+        empty/short page the way a naive loop would.
+        """
+        params = dict(params or {})
+        params.setdefault("per", 100)
+        result = self._fetch_page(endpoint, params, page=1)
+        out = list(result.get("data") or [])
+        meta = result.get("meta") or {}
+        total_pages = meta.get("total_pages")
+        if total_pages and total_pages > 1:
+            for page in range(2, total_pages + 1):
+                pr = self._fetch_page(endpoint, params, page=page)
+                out.extend(pr.get("data") or [])
+        else:
+            nxt = self._next_page_from_meta(result)
+            guard = 0
+            while nxt and guard < 1000:
+                guard += 1
+                pr = self._fetch_page(endpoint, params, page=nxt)
+                rows = pr.get("data") or []
+                if not rows:
+                    break
+                out.extend(rows)
+                nxt = self._next_page_from_meta(pr)
+        return out
+
     def get_brandfolders(self) -> List[Dict]:
         """
         Get all accessible brandfolders.
@@ -87,7 +162,7 @@ class BrandfolderAPI:
                 org_id = org.get("id")
                 if not org_id:
                     continue
-                org_bfs = self._request("GET", f"/organizations/{org_id}/brandfolders").get("data", []) or []
+                org_bfs = self._list_all(f"/organizations/{org_id}/brandfolders")
                 org_name = org.get("attributes", {}).get("name", org_id)
                 print(f"   org '{org_name}' ({org_id}): {len(org_bfs)} brandfolder(s)")
                 for bf in org_bfs:
@@ -100,7 +175,7 @@ class BrandfolderAPI:
         if not data:
             print("⚠️ /brandfolders y organizaciones vacíos; intentando vía /collections...")
             try:
-                cols = self._request("GET", "/collections").get("data", []) or []
+                cols = self._list_all("/collections")
                 if cols:
                     print(f"   colecciones visibles: {len(cols)}")
                     # Sort so that *All ICN Assets or all-icn is first
@@ -196,60 +271,137 @@ class BrandfolderAPI:
         else:
             raise ValueError("Must provide section_id, collection_id, or brandfolder_id")
         
-        # Initial request
-        result = self._request("GET", endpoint, params)
+        # --- Page 1 (with brandfolder→collection fallback) ---
+        result = self._fetch_page(endpoint, params, page=1)
         if brandfolder_id and (result.get("error") or not result.get("data")):
-            # Fallback to collection if brandfolder endpoint failed
+            # A collection id was passed as brandfolder_id, or the key only has
+            # collection scope — fall back to the collection endpoint.
             col_endpoint = f"/collections/{brandfolder_id}/assets"
-            col_result = self._request("GET", col_endpoint, params)
+            col_result = self._fetch_page(col_endpoint, params, page=1)
             if col_result.get("data"):
                 result = col_result
                 endpoint = col_endpoint
-        
-        # Map included attachments to assets
-        assets = result.get("data") or []
-        included = result.get("included") or []
-        
-        # Pagination Loop
-        meta = result.get("meta", {})
-        # Brandfolder API puts pagination info directly in meta root sometimes, or in meta.pagination
-        # debug_raw_response.py showed keys: ['current_page', 'next_page', ...] directly in meta
-        next_page = meta.get("next_page")
-        
-        while next_page:
-            print(f"📄 Fetching page {next_page}...")
 
-            # Brandfolder API returns next_page as an integer in meta.
-            # It does NOT reliably return links.next.
-            params["page"] = next_page
-            result = self._request("GET", endpoint, params)
+        assets = list(result.get("data") or [])
+        included = list(result.get("included") or [])
+        meta = result.get("meta") or {}
+        total_count = meta.get("total_count")
+        total_pages = meta.get("total_pages")
+        self._last_total_count = total_count
 
-            # Retry transient errors (e.g. rate limits) so a single failed page
-            # does NOT silently truncate the whole library mid-pagination.
-            attempts = 0
-            while result.get("error") and attempts < 3:
-                attempts += 1
-                print(f"⚠️ Page {next_page} error (retry {attempts}/3): {result.get('error')}")
-                time.sleep(1.5 * attempts)
-                result = self._request("GET", endpoint, params)
+        # --- Collect every remaining page WITHOUT silently truncating. ---
+        # Iterate page numbers up to total_pages so a single failed page no longer
+        # kills the whole tail (the old `break` did exactly that, capping the
+        # umbrella collection at a partial count). Fall back to following next_page
+        # only when the API doesn't report total_pages.
+        missing_pages = []
+        if total_pages and total_pages > 1:
+            for page in range(2, total_pages + 1):
+                pr = self._fetch_page(endpoint, params, page=page)
+                page_assets = pr.get("data") or []
+                if pr.get("error") and not page_assets:
+                    print(f"❌ {endpoint} page {page} failed after retries — will retry in reconcile.")
+                    missing_pages.append(page)
+                    continue
+                assets.extend(page_assets)
+                included.extend(pr.get("included") or [])
+        else:
+            next_page = self._next_page_from_meta(result)
+            guard = 0
+            while next_page and guard < 10000:
+                guard += 1
+                pr = self._fetch_page(endpoint, params, page=next_page)
+                page_assets = pr.get("data") or []
+                if pr.get("error") and not page_assets:
+                    print(f"❌ {endpoint} page {next_page} failed after retries — stopping.")
+                    break
+                assets.extend(page_assets)
+                included.extend(pr.get("included") or [])
+                next_page = self._next_page_from_meta(pr)
 
-            new_assets = result.get("data") or []
-            new_included = result.get("included") or []
-            meta = result.get("meta", {})
-            upcoming = meta.get("next_page")  # None if no more pages
+        # --- Reconcile collected vs the total the API declared (meta.total_count). ---
+        def _unique(items):
+            return len({a.get("id") for a in items if a.get("id")})
 
-            if not new_assets:
-                if result.get("error"):
-                    print(f"❌ Aborting pagination at page {next_page} after retries — list may be partial.")
-                break
+        if total_count and _unique(assets) < total_count and missing_pages:
+            print(f"🔁 {endpoint}: {_unique(assets)}/{total_count} — retrying {len(missing_pages)} failed page(s)...")
+            for page in list(missing_pages):
+                pr = self._fetch_page(endpoint, params, page=page, max_attempts=4)
+                page_assets = pr.get("data") or []
+                if page_assets:
+                    assets.extend(page_assets)
+                    included.extend(pr.get("included") or [])
+                    missing_pages.remove(page)
 
-            assets.extend(new_assets)
-            included.extend(new_included)
-            next_page = upcoming
+        if total_count and _unique(assets) < total_count:
+            print(f"⚠️ COVERAGE SHORTFALL on {endpoint}: got {_unique(assets)}/{total_count} "
+                  f"(unrecovered pages: {missing_pages or 'silent/next_page gap'}).")
 
         return self._map_attachments_to_assets(assets, included)
-    
-    def search_assets(self, brandfolder_id: str, query: str, 
+
+    def diagnose_collection_assets(self, coll_id: str) -> Dict[str, Any]:
+        """
+        Lightweight coverage probe for ONE collection/brandfolder: fully paginate
+        (ids only, no attachments) and report how many assets were reachable vs the
+        total the API declares, plus whether pagination truncated. Read-only.
+        """
+        params = {"per": 200}  # ids only → bigger pages are safe (no attachment payload)
+        endpoint = f"/brandfolders/{coll_id}/assets"
+        endpoint_used = "brandfolder"
+        result = self._fetch_page(endpoint, params, page=1)
+        if result.get("error") or not result.get("data"):
+            endpoint = f"/collections/{coll_id}/assets"
+            endpoint_used = "collection"
+            result = self._fetch_page(endpoint, params, page=1)
+
+        ids = {a["id"] for a in (result.get("data") or []) if a.get("id")}
+        meta = result.get("meta") or {}
+        api_total = meta.get("total_count")
+        total_pages = meta.get("total_pages")
+        truncated = False
+        truncation_mode = "none"
+        stopped_at = None
+
+        if total_pages and total_pages > 1:
+            for page in range(2, total_pages + 1):
+                pr = self._fetch_page(endpoint, params, page=page)
+                rows = pr.get("data") or []
+                if pr.get("error") and not rows:
+                    truncated = True
+                    truncation_mode = "page_error"
+                    stopped_at = stopped_at or page
+                    continue
+                ids.update(a["id"] for a in rows if a.get("id"))
+        else:
+            nxt = self._next_page_from_meta(result)
+            guard = 0
+            while nxt and guard < 10000:
+                guard += 1
+                pr = self._fetch_page(endpoint, params, page=nxt)
+                rows = pr.get("data") or []
+                if pr.get("error") and not rows:
+                    truncated = True
+                    truncation_mode = "page_error"
+                    stopped_at = nxt
+                    break
+                ids.update(a["id"] for a in rows if a.get("id"))
+                nxt = self._next_page_from_meta(pr)
+
+        if api_total and len(ids) < api_total and truncation_mode == "none":
+            truncated = True
+            truncation_mode = "silent"
+
+        return {
+            "ids": ids,
+            "collected": len(ids),
+            "api_total": api_total,
+            "endpoint_used": endpoint_used,
+            "truncated": truncated,
+            "truncation_mode": truncation_mode,
+            "stopped_at_page": stopped_at,
+        }
+
+    def search_assets(self, brandfolder_id: str, query: str,
                       include_attachments: bool = True) -> List[Dict]:
         """
         Search for assets within a brandfolder.

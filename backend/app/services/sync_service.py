@@ -8,12 +8,20 @@ Features:
     Supabase documents table before processing any asset.
   - Lockout: Prevents two concurrent syncs from running at the same time.
   - Preserves existing memory: Never deletes or overwrites existing indexed content.
+  - Throttled parallelism: transcription/extraction runs across a small pool of
+    worker threads (the slow part), while ALL database writes go through a single
+    serialized, rate-limited channel so a heavy sync never saturates Postgres and
+    starves Supabase Auth (which previously caused login 504s).
+  - Self-healing status: a sync row left as 'running' by a crash/restart/redeploy
+    is automatically marked 'failed' so the admin UI never gets stuck.
 """
 
 import sqlite3
 import os
+import time
 import uuid
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
 
 # DB Path (same as research_service.py)
 if os.path.exists("/app/brain_data"):
@@ -24,6 +32,14 @@ else:
 
 # Lock flag to prevent concurrent runs
 _sync_running = False
+
+# --- Tunables (override via env vars, no code change needed) ---
+# How many assets to transcribe/extract in parallel. Kept modest because the
+# heavy cost is Gemini transcription (network), not local CPU.
+SYNC_WORKERS = max(1, int(os.environ.get("SYNC_WORKERS", "4")))
+# Minimum seconds between two Supabase writes. This is the "brake" that keeps the
+# free-tier database responsive for Auth while a big ingestion runs. 0 disables it.
+SYNC_WRITE_INTERVAL = max(0.0, float(os.environ.get("SYNC_WRITE_INTERVAL", "0.3")))
 
 
 def _init_sync_log_table():
@@ -45,6 +61,33 @@ def _init_sync_log_table():
     ''')
     conn.commit()
     conn.close()
+
+
+def _heal_interrupted_syncs(conn=None):
+    """
+    Mark any sync_log row still in 'running' as 'failed'. A row left as 'running'
+    means its process died mid-run (crash, Railway redeploy, or the manual restart
+    we did to recover Auth) without reaching the finally block. Safe to call at
+    startup and before starting a new run — no live sync survives a process death.
+    """
+    own = conn is None
+    if own:
+        _init_sync_log_table()
+        conn = sqlite3.connect(DB_PATH)
+    try:
+        conn.execute(
+            "UPDATE sync_log "
+            "SET status='failed', "
+            "    completed_at=COALESCE(completed_at, CURRENT_TIMESTAMP), "
+            "    notes=COALESCE(notes,'') || ' [auto-sanado: proceso interrumpido]' "
+            "WHERE status='running'"
+        )
+        conn.commit()
+    except Exception as e:
+        print(f"⚠️  Could not heal interrupted syncs: {e}")
+    finally:
+        if own:
+            conn.close()
 
 
 def _clean_html(text: str) -> str:
@@ -184,6 +227,15 @@ def full_sync():
     - It will skip assets already indexed.
     - It will not delete or modify existing indexed content.
     - It will not run if a sync is already in progress.
+
+    Architecture (producer/consumer):
+    - A pre-scan on the main thread applies dedup + change-detection and builds a
+      work list of assets that genuinely need processing.
+    - A pool of SYNC_WORKERS threads does the slow, DB-free work (download +
+      Gemini transcription / image captioning / document extraction).
+    - The main thread is the ONLY writer: it consumes finished work and performs
+      every Supabase and SQLite write, spaced by SYNC_WRITE_INTERVAL. This keeps
+      total database pressure controlled so Auth stays responsive.
     """
     global _sync_running
 
@@ -197,26 +249,49 @@ def full_sync():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     _ensure_bf_updated_at_column(conn)
+    _heal_interrupted_syncs(conn)  # clear any ghost 'running' row before we start
 
     # Create a log entry for this sync run
-    c.execute(
-        "INSERT INTO sync_log (status) VALUES ('running')"
-    )
+    c.execute("INSERT INTO sync_log (status) VALUES ('running')")
     conn.commit()
     log_id = c.lastrowid
     started_at = datetime.utcnow()
 
     stats = {"total_found": 0, "new_indexed": 0, "skipped": 0, "failed": 0, "reindexed": 0}
 
+    # Throttle state — every write happens on THIS (main) thread, so no lock needed.
+    _last_write = {"t": 0.0}
+
+    def _throttle():
+        if SYNC_WRITE_INTERVAL <= 0:
+            return
+        gap = SYNC_WRITE_INTERVAL - (time.monotonic() - _last_write["t"])
+        if gap > 0:
+            time.sleep(gap)
+        _last_write["t"] = time.monotonic()
+
+    def _update_progress():
+        """Persist live counters so the admin UI shows real-time progress."""
+        try:
+            c.execute(
+                "UPDATE sync_log SET total_found=?, new_indexed=?, skipped=?, failed=? WHERE id=?",
+                (stats["total_found"], stats["new_indexed"], stats["skipped"], stats["failed"], log_id),
+            )
+            conn.commit()
+        except Exception as e:
+            print(f"⚠️  [AutoSync] progress update failed: {e}")
+
     try:
         from .brandfolder_service import BrandfolderAPI
         from .media_service import MediaService
         from .rag_service import RAGManager
 
-        print("🔄 [AutoSync] Starting full library sync...")
+        print(f"🔄 [AutoSync] Starting full library sync "
+              f"(workers={SYNC_WORKERS}, write_interval={SYNC_WRITE_INTERVAL}s)...")
 
         bf_api = BrandfolderAPI()
         rag = RAGManager()
+        media_service = MediaService()
 
         # 1. Get ALL Brandfolders (index the entire library, not just the first one)
         brandfolders = bf_api.get_brandfolders()
@@ -241,13 +316,7 @@ def full_sync():
 
         stats["total_found"] = len(raw_assets)
         print(f"✅ [AutoSync] Found {len(raw_assets)} unique assets across all Brandfolders.")
-
-        # Update log with total count
-        c.execute(
-            "UPDATE sync_log SET total_found=? WHERE id=?",
-            (stats["total_found"], log_id)
-        )
-        conn.commit()
+        _update_progress()
 
         # 3. Create a special auto-sync session in research_sessions
         session_id = str(uuid.uuid4())
@@ -257,36 +326,29 @@ def full_sync():
         )
         conn.commit()
 
-        media_service = MediaService()
-
-        # 4. Process each asset — skip ones already indexed
+        # 4. PRE-SCAN (main thread): dedup + change-detection → build the work list.
+        #    All SQLite reads/writes here stay on the main thread.
+        work = []
         for asset in raw_assets:
             info = bf_api.extract_asset_info(asset)
             asset_id = info["id"]
             name = info["name"]
-
             current_ts = info.get("updated_at")
 
             # Determine asset type & URL
             asset_type = "document"
             url = f"https://brandfolder.com/workbench/{asset_id}"
-
             for att in info["attachments"]:
                 mimetype = att.get("mimetype") or ""
                 if "video" in mimetype:
-                    asset_type = "video"
-                    url = att.get("url")
-                    break
+                    asset_type = "video"; url = att.get("url"); break
                 if "audio" in mimetype:
-                    asset_type = "audio"
-                    url = att.get("url")
-                    break
+                    asset_type = "audio"; url = att.get("url"); break
                 if "image" in mimetype:
-                    asset_type = "image"
-                    url = att.get("url")
-                    break
+                    asset_type = "image"; url = att.get("url"); break
 
             source_link = f"https://brandfolder.com/workbench/{asset_id}"
+            desc = _clean_html(info.get("description") or "")
 
             # --- DEDUP + CHANGE DETECTION (fast SQLite check first) ---
             stored_ts = _asset_indexed_ts(c, asset_id)
@@ -298,11 +360,14 @@ def full_sync():
                     continue
                 # Timestamp changed in Brandfolder → re-index this asset.
                 print(f"🔁 [AutoSync] Re-indexing changed asset: {name}")
-                rag.delete_document(source_link)
+                try:
+                    rag.delete_document(source_link)
+                except Exception as e:
+                    print(f"⚠️  [AutoSync] delete for reindex failed ({name}): {e}")
                 c.execute("DELETE FROM research_assets WHERE asset_id=?", (asset_id,))
                 conn.commit()
                 stats["reindexed"] += 1
-                # fall through to process
+                # fall through to queue for processing
             elif rag.document_exists(source_link):
                 # Present in the vector DB but not in local SQLite (e.g. after a
                 # volume reset) — record it and skip re-embedding.
@@ -315,104 +380,157 @@ def full_sync():
                 stats["skipped"] += 1
                 continue
 
-            # --- PROCESS NEW (or changed) ASSET ---
+            # Queue for processing: insert a 'pending' row now, capture its id.
+            c.execute(
+                "INSERT INTO research_assets (session_id, asset_id, name, type, url, status) VALUES (?,?,?,?,?,?)",
+                (session_id, asset_id, name, asset_type, url, "pending")
+            )
+            conn.commit()
+            work.append({
+                "asset_id": asset_id,
+                "name": name,
+                "asset_type": asset_type,
+                "current_ts": current_ts,
+                "source_link": source_link,
+                "description": desc,
+                "row_id": c.lastrowid,
+            })
+
+        print(f"🧮 [AutoSync] Pre-scan done: {len(work)} to process | "
+              f"{stats['skipped']} skipped | {stats['reindexed']} changed.")
+        _update_progress()
+
+        # --- Worker (runs on a pool thread): heavy IO + Gemini, NO database writes ---
+        def _prepare(item):
+            asset_id = item["asset_id"]
+            name = item["name"]
+            asset_type = item["asset_type"]
+            desc = item["description"]
+
+            content = f"Asset: {name}\nType: {asset_type}"
+            if desc:
+                content += f"\nDescripción: {desc}"
+
             try:
-                # Insert into DB with 'pending' status first
-                c.execute(
-                    "INSERT INTO research_assets (session_id, asset_id, name, type, url, status) VALUES (?,?,?,?,?,?)",
-                    (session_id, asset_id, name, asset_type, url, "pending")
-                )
-                conn.commit()
-                asset_row_id = c.lastrowid
+                fresh_details = bf_api.get_asset_details(asset_id)
+                fresh_info = bf_api.extract_asset_info(fresh_details)
 
-                # Base content: name + type + the asset's Brandfolder description (HTML stripped)
-                content = f"Asset: {name}\nType: {asset_type}"
-                desc = _clean_html(info.get("description") or "")
-                if desc:
-                    content += f"\nDescripción: {desc}"
+                # Tags are only available from the detailed asset fetch.
+                if fresh_info.get("tags"):
+                    content += "\nTags: " + ", ".join(fresh_info["tags"])
+                # If the description was empty in the list view, try the fresh one.
+                if not desc:
+                    fresh_desc = _clean_html(fresh_info.get("description") or "")
+                    if fresh_desc:
+                        content += f"\nDescripción: {fresh_desc}"
 
-                if asset_type in ["video", "audio", "document", "image"]:
-                    try:
-                        fresh_details = bf_api.get_asset_details(asset_id)
-                        fresh_info = bf_api.extract_asset_info(fresh_details)
+                fresh_url = None
+                fresh_mime = ""
+                for att in fresh_info["attachments"]:
+                    mimetype = att.get("mimetype") or ""
+                    if asset_type == "video" and "video" in mimetype:
+                        fresh_url = att.get("url"); fresh_mime = mimetype; break
+                    if asset_type == "audio" and "audio" in mimetype:
+                        fresh_url = att.get("url"); fresh_mime = mimetype; break
+                    if asset_type == "image" and "image" in mimetype:
+                        fresh_url = att.get("url"); fresh_mime = mimetype; break
+                    if asset_type == "document" and any(x in mimetype for x in [
+                        "pdf", "wordprocessing", "presentation", "officedocument",
+                        "document", "msword", "ms-powerpoint", "text",
+                    ]):
+                        fresh_url = att.get("url"); fresh_mime = mimetype; break
 
-                        # Add tags (only available from the detailed asset fetch)
-                        if fresh_info.get("tags"):
-                            content += "\nTags: " + ", ".join(fresh_info["tags"])
-                        # If the description was empty in the list view, try the fresh one
-                        if not desc:
-                            fresh_desc = _clean_html(fresh_info.get("description") or "")
-                            if fresh_desc:
-                                content += f"\nDescripción: {fresh_desc}"
+                # Fallback to first attachment for documents/images
+                if not fresh_url and asset_type in ("document", "image") and fresh_info["attachments"]:
+                    fresh_url = fresh_info["attachments"][0].get("url")
+                    fresh_mime = fresh_info["attachments"][0].get("mimetype") or ""
 
-                        fresh_url = None
-                        fresh_mime = ""
-                        for att in fresh_info["attachments"]:
-                            mimetype = att.get("mimetype") or ""
-                            if asset_type == "video" and "video" in mimetype:
-                                fresh_url = att.get("url"); fresh_mime = mimetype
-                                break
-                            if asset_type == "audio" and "audio" in mimetype:
-                                fresh_url = att.get("url"); fresh_mime = mimetype
-                                break
-                            if asset_type == "image" and "image" in mimetype:
-                                fresh_url = att.get("url"); fresh_mime = mimetype
-                                break
-                            if asset_type == "document" and any(x in mimetype for x in [
-                                "pdf", "wordprocessing", "presentation", "officedocument",
-                                "document", "msword", "ms-powerpoint", "text",
-                            ]):
-                                fresh_url = att.get("url"); fresh_mime = mimetype
-                                break
-
-                        # Fallback to first attachment for documents/images
-                        if not fresh_url and asset_type in ("document", "image") and fresh_info["attachments"]:
-                            fresh_url = fresh_info["attachments"][0].get("url")
-                            fresh_mime = fresh_info["attachments"][0].get("mimetype") or ""
-
-                        if fresh_url and fresh_url.startswith("http"):
-                            local_path = bf_api.download_attachment(fresh_url)
-                            if local_path:
-                                if asset_type in ["video", "audio"]:
-                                    mime = "video/mp4" if asset_type == "video" else "audio/mp3"
-                                    transcript = media_service.transcribe_media(local_path, mime_type=mime)
-                                    content += f"\n\n--- TRANSCRIPT ---\n{transcript}"
-                                elif asset_type == "image":
-                                    caption = media_service.describe_image(
-                                        local_path, mime_type=(fresh_mime or "image/jpeg")
-                                    )
-                                    content += f"\n\n--- DESCRIPCIÓN DE LA IMAGEN (IA) ---\n{caption}"
-                                elif asset_type == "document":
-                                    doc_text = extract_text_from_document(local_path, fresh_mime)
-                                    if doc_text.strip():
-                                        content += f"\n\n--- DOCUMENT TEXT ---\n{doc_text}"
-                                    else:
-                                        print(f"⚠️  Sin texto extraíble de: {name} ({fresh_mime or 'mimetype desconocido'})")
+                if fresh_url and fresh_url.startswith("http"):
+                    local_path = bf_api.download_attachment(fresh_url)
+                    if local_path:
+                        try:
+                            if asset_type in ["video", "audio"]:
+                                mime = "video/mp4" if asset_type == "video" else "audio/mp3"
+                                transcript = media_service.transcribe_media(local_path, mime_type=mime)
+                                content += f"\n\n--- TRANSCRIPT ---\n{transcript}"
+                            elif asset_type == "image":
+                                caption = media_service.describe_image(
+                                    local_path, mime_type=(fresh_mime or "image/jpeg")
+                                )
+                                content += f"\n\n--- DESCRIPCIÓN DE LA IMAGEN (IA) ---\n{caption}"
+                            elif asset_type == "document":
+                                doc_text = extract_text_from_document(local_path, fresh_mime)
+                                if doc_text.strip():
+                                    content += f"\n\n--- DOCUMENT TEXT ---\n{doc_text}"
+                                else:
+                                    print(f"⚠️  Sin texto extraíble de: {name} ({fresh_mime or 'mimetype desconocido'})")
+                        finally:
+                            try:
                                 os.remove(local_path)
-                    except Exception as e:
-                        print(f"⚠️  [AutoSync] Media processing failed for {name}: {e}")
-                        content += f"\n\n[Extraction Failed: {e}]"
-
-                # Index to Vector DB (store Brandfolder updated_at for change detection)
-                rag.add_document(content, source_link, title=name, metadata={"bf_updated_at": current_ts})
-
-                # Mark as indexed in DB
-                c.execute(
-                    "UPDATE research_assets SET status='indexed', content=?, bf_updated_at=? WHERE id=?",
-                    (content, current_ts, asset_row_id)
-                )
-                conn.commit()
-                stats["new_indexed"] += 1
-                print(f"✅ [AutoSync] Indexed: {name}")
-
+                            except OSError:
+                                pass
             except Exception as e:
-                print(f"❌ [AutoSync] Failed to process {name}: {e}")
-                stats["failed"] += 1
+                print(f"⚠️  [AutoSync] Media processing failed for {name}: {e}")
+                content += f"\n\n[Extraction Failed: {e}]"
 
-        # 5. Mark session and log as completed
+            return content
+
+        # --- Writer (main thread only): throttled Supabase + SQLite write ---
+        def _write_result(item, content):
+            _throttle()
+            rag.add_document(
+                content, item["source_link"], title=item["name"],
+                metadata={"bf_updated_at": item["current_ts"]},
+            )
+            c.execute(
+                "UPDATE research_assets SET status='indexed', content=?, bf_updated_at=? WHERE id=?",
+                (content, item["current_ts"], item["row_id"]),
+            )
+            conn.commit()
+            stats["new_indexed"] += 1
+            print(f"✅ [AutoSync] Indexed: {item['name']}")
+
+        # 5. Fan out preparation across a bounded pool; consume + write serially.
+        idx = 0
+        processed = 0
+        future_item = {}
+        inflight = set()
+        window = max(SYNC_WORKERS * 2, SYNC_WORKERS + 1)  # bound memory / temp files
+
+        with ThreadPoolExecutor(max_workers=SYNC_WORKERS) as pool:
+            def _submit_next():
+                nonlocal idx
+                if idx < len(work):
+                    it = work[idx]; idx += 1
+                    fut = pool.submit(_prepare, it)
+                    future_item[fut] = it
+                    inflight.add(fut)
+
+            # Prime the window.
+            while idx < len(work) and len(inflight) < window:
+                _submit_next()
+
+            # Drain: as each preparation finishes, write it and refill the window.
+            while inflight:
+                done, _ = wait(inflight, return_when=FIRST_COMPLETED)
+                for fut in done:
+                    inflight.discard(fut)
+                    it = future_item.pop(fut)
+                    try:
+                        content = fut.result()
+                        _write_result(it, content)
+                    except Exception as e:
+                        print(f"❌ [AutoSync] Failed to process {it['name']}: {e}")
+                        stats["failed"] += 1
+                    processed += 1
+                    if processed % 5 == 0:
+                        _update_progress()
+                    _submit_next()
+
+        # 6. Mark session and log as completed
         c.execute("UPDATE research_sessions SET status='completed' WHERE id=?", (session_id,))
         c.execute(
-            """UPDATE sync_log 
+            """UPDATE sync_log
                SET status='completed', completed_at=CURRENT_TIMESTAMP,
                    new_indexed=?, skipped=?, failed=?
                WHERE id=?""",
@@ -427,11 +545,14 @@ def full_sync():
 
     except Exception as e:
         print(f"💥 [AutoSync] CRITICAL ERROR: {e}")
-        c.execute(
-            "UPDATE sync_log SET status='failed', completed_at=CURRENT_TIMESTAMP, notes=? WHERE id=?",
-            (str(e), log_id)
-        )
-        conn.commit()
+        try:
+            c.execute(
+                "UPDATE sync_log SET status='failed', completed_at=CURRENT_TIMESTAMP, notes=? WHERE id=?",
+                (str(e), log_id)
+            )
+            conn.commit()
+        except Exception:
+            pass
 
     finally:
         conn.close()
@@ -439,15 +560,35 @@ def full_sync():
 
 
 def get_last_sync_status() -> dict:
-    """Returns the status of the last completed or running sync."""
+    """
+    Returns the status of the last completed or running sync. If the newest row
+    is stuck at 'running' but no sync is actually live in this process (a ghost
+    left by a crash/restart), it is healed to 'failed' so the UI never sticks.
+    """
     _init_sync_log_table()
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
     c.execute("SELECT * FROM sync_log ORDER BY id DESC LIMIT 1")
     row = c.fetchone()
+    result = dict(row) if row else {"status": "never_run"}
+
+    if result.get("status") == "running" and not _sync_running:
+        note = (result.get("notes") or "") + " [auto-sanado: interrumpido]"
+        try:
+            c.execute(
+                "UPDATE sync_log SET status='failed', "
+                "completed_at=COALESCE(completed_at, CURRENT_TIMESTAMP), notes=? WHERE id=?",
+                (note, result["id"]),
+            )
+            conn.commit()
+            result["status"] = "failed"
+            result["notes"] = note
+        except Exception as e:
+            print(f"⚠️  Could not heal ghost sync status: {e}")
+
     conn.close()
-    return dict(row) if row else {"status": "never_run"}
+    return result
 
 
 def coverage_stats() -> dict:

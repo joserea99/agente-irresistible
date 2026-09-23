@@ -111,6 +111,14 @@ async def start_auto_sync_scheduler():
     content into the agent's memory every 7 days.
     Only activates if a Brandfolder API key is configured.
     """
+    # Heal any sync left as 'running' by a crash/restart/redeploy so the admin
+    # UI never gets stuck on a ghost "Running" status.
+    try:
+        from app.services.sync_service import _heal_interrupted_syncs
+        _heal_interrupted_syncs()
+    except Exception as e:
+        logger.warning(f"Sync status heal on startup failed (non-fatal): {e}")
+
     if not os.environ.get("BRANDFOLDER_API_KEY"):
         logger.info("BRANDFOLDER_API_KEY not set. Auto-sync scheduler disabled.")
         return

@@ -103,6 +103,11 @@ class BrandfolderAPI:
         result = self._request("GET", endpoint, page_params)
         attempts = 0
         while result.get("error") and attempts < max_attempts:
+            # Permanent client errors won't fix themselves — don't burn backoff time
+            # retrying them (e.g. the deliberate /brandfolders 403 we fall back from).
+            # Only retry rate limits (429) and transient server errors (5xx/unknown).
+            if result.get("status") in (400, 401, 403, 404):
+                break
             attempts += 1
             wait = min(2 ** attempts, 15)  # 2,4,8,15,15s — absorb Brandfolder rate limits
             print(f"⚠️ {endpoint} page {page} error (retry {attempts}/{max_attempts}) in {wait}s: {result.get('error')}")
@@ -400,6 +405,23 @@ class BrandfolderAPI:
             "truncation_mode": truncation_mode,
             "stopped_at_page": stopped_at,
         }
+
+    def collection_total(self, coll_id: str) -> Dict[str, Any]:
+        """
+        FAST size probe: read only page 1 (per=1) to get meta.total_count for a
+        collection/brandfolder. One request — no full pagination — so it stays well
+        under the HTTP gateway timeout. total_count is independent of `per`.
+        """
+        params = {"per": 1}
+        endpoint = f"/brandfolders/{coll_id}/assets"
+        endpoint_used = "brandfolder"
+        result = self._fetch_page(endpoint, params, page=1, max_attempts=2)
+        if result.get("error") or not result.get("data"):
+            endpoint = f"/collections/{coll_id}/assets"
+            endpoint_used = "collection"
+            result = self._fetch_page(endpoint, params, page=1, max_attempts=2)
+        meta = result.get("meta") or {}
+        return {"api_total": meta.get("total_count"), "endpoint_used": endpoint_used}
 
     def search_assets(self, brandfolder_id: str, query: str,
                       include_attachments: bool = True) -> List[Dict]:

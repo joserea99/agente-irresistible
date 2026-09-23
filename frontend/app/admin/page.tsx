@@ -438,17 +438,12 @@ export default function AdminPage() {
                                     <div className="rounded-lg border border-border p-4 text-sm space-y-3">
                                         <div className="flex flex-wrap items-center gap-6">
                                             <div>
-                                                <span className="text-2xl font-bold">{diagnosis.unique_assets ?? 0}</span>
-                                                <span className="text-xs text-muted-foreground"> alcanzables por el sync</span>
+                                                <span className="text-2xl font-bold">{diagnosis.all_collection_total ?? "—"}</span>
+                                                <span className="text-xs text-muted-foreground"> activos reales en Brandfolder</span>
                                             </div>
                                             <div>
-                                                <span className="text-2xl font-bold">{diagnosis.all_collection_total ?? "—"}</span>
-                                                <span className="text-xs text-muted-foreground"> reales en Brandfolder</span>
-                                            </div>
-                                            <div className={(diagnosis.missing_vs_all ?? 0) > 0 ? "text-amber-600 font-semibold" : "text-green-600 font-semibold"}>
-                                                {(diagnosis.missing_vs_all ?? 0) > 0
-                                                    ? `⚠️ Faltan ${diagnosis.missing_vs_all}`
-                                                    : "✓ Cobertura completa"}
+                                                <span className="text-2xl font-bold">{diagnosis.collections_count ?? 0}</span>
+                                                <span className="text-xs text-muted-foreground"> colecciones visibles</span>
                                             </div>
                                         </div>
                                         <div className="overflow-x-auto">
@@ -456,27 +451,22 @@ export default function AdminPage() {
                                                 <thead>
                                                     <tr className="text-left text-muted-foreground">
                                                         <th className="py-1 pr-3">Colección</th>
-                                                        <th className="py-1 pr-3">Alcanzados</th>
                                                         <th className="py-1 pr-3">Total real</th>
-                                                        <th className="py-1">Estado</th>
+                                                        <th className="py-1">Vía</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
                                                     {(diagnosis.collections ?? []).map((c: any) => (
                                                         <tr key={c.id} className="border-t border-border/50">
                                                             <td className="py-1 pr-3">{c.name}</td>
-                                                            <td className="py-1 pr-3">{c.collected}</td>
                                                             <td className="py-1 pr-3">{c.api_total ?? "—"}</td>
-                                                            <td className="py-1">
-                                                                {c.truncated
-                                                                    ? <span className="text-red-600 font-semibold">Truncada ({c.truncation_mode})</span>
-                                                                    : <span className="text-green-600">OK</span>}
-                                                            </td>
+                                                            <td className="py-1 text-muted-foreground">{c.endpoint_used}</td>
                                                         </tr>
                                                     ))}
                                                 </tbody>
                                             </table>
                                         </div>
+                                        {diagnosis.note && <p className="text-xs text-muted-foreground">{diagnosis.note}</p>}
                                     </div>
                                 )}
                                 {diagnosis?.error && (

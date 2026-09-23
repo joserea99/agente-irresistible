@@ -633,56 +633,43 @@ def coverage_stats() -> dict:
 
 def diagnose_coverage() -> dict:
     """
-    Live Brandfolder reachability audit. For each library/collection the sync
-    actually sees (get_brandfolders), fully paginate it and report how many
-    assets are reachable vs. the total Brandfolder declares (meta.total_count),
-    flagging any collection whose pagination truncated. Read-only.
+    FAST Brandfolder reachability check. For each library/collection the sync sees
+    (get_brandfolders), read only page 1 to get meta.total_count — the real size
+    Brandfolder exposes. Avoids the slow full pagination that exceeded the HTTP
+    gateway timeout. Read-only.
 
-    This pinpoints WHERE assets go missing: compare 'unique_assets' (what the
-    sync would index) against 'all_collection_total' (the umbrella
-    "*All ICN Assets" count). A positive 'missing_vs_all' is the gap.
+    Shows the umbrella total (the full library, e.g. 2163) and each collection's
+    size, so you can confirm the API exposes everything before running a full sync
+    (which now paginates completely up to these totals).
     """
     try:
         from .brandfolder_service import BrandfolderAPI
         bf = BrandfolderAPI()
         libraries = bf.get_brandfolders()
         per_coll = []
-        union = set()
         all_total = None
         for lib in libraries:
             lib_id = lib.get("id")
             attrs = lib.get("attributes", {}) or {}
-            d = bf.diagnose_collection_assets(lib_id)
-            before = len(union)
-            union |= d["ids"]
+            info = bf.collection_total(lib_id)
             per_coll.append({
                 "name": attrs.get("name", lib_id),
                 "slug": attrs.get("slug", ""),
                 "id": lib_id,
-                "endpoint_used": d["endpoint_used"],
-                "collected": d["collected"],
-                "api_total": d["api_total"],
-                "truncated": d["truncated"],
-                "truncation_mode": d["truncation_mode"],
-                "stopped_at_page": d["stopped_at_page"],
-                "unique_contribution": len(union) - before,
+                "endpoint_used": info["endpoint_used"],
+                "api_total": info["api_total"],
             })
-            if d["api_total"] and (all_total is None or d["api_total"] > all_total):
-                all_total = d["api_total"]
+            if info["api_total"] and (all_total is None or info["api_total"] > all_total):
+                all_total = info["api_total"]
 
-        unique_assets = len(union)
-        sum_overlap = sum(c["collected"] for c in per_coll)
-        truncated_cols = [c["name"] for c in per_coll if c["truncated"]]
         return {
             "collections_count": len(libraries),
             "collections": per_coll,
-            "sum_with_overlap": sum_overlap,
-            "unique_assets": unique_assets,
-            "duplicates_removed": sum_overlap - unique_assets,
             "all_collection_total": all_total,
-            "missing_vs_all": (all_total - unique_assets) if all_total else None,
-            "truncated_collections": truncated_cols,
-            "ok": bool(all_total and unique_assets >= all_total and not truncated_cols),
+            "note": (
+                "El sync ahora pagina completo hasta el total real de cada colección. "
+                "Corre 'Sincronizar Todo Ahora' para ingerir lo que falte."
+            ),
         }
     except Exception as e:
         return {"error": str(e)}

@@ -569,7 +569,6 @@ class DojoService:
                 config=types.GenerateContentConfig(
                     system_instruction=system_prompt,
                     temperature=0.8,
-                    thinking_config=types.ThinkingConfig(thinking_budget=0),
                 )
             )
             return response.text

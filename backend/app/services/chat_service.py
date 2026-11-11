@@ -89,21 +89,24 @@ class ChatService:
             "temperature": settings.gemini_temperature,
         }
 
-        # Extended reasoning ("thinking") — 0 in fast mode, 2048 in Deep Analysis mode.
-        try:
-            budget = 2048 if deep_thinking else settings.gemini_thinking_budget
-            kwargs["thinking_config"] = types.ThinkingConfig(
-                thinking_budget=budget
-            )
-        except Exception:
-            pass
+        # Extended reasoning ("thinking") — only set when explicitly requested in Deep Analysis mode.
+        if deep_thinking:
+            try:
+                kwargs["thinking_config"] = types.ThinkingConfig(
+                    thinking_budget=2048
+                )
+            except Exception:
+                pass
 
         # Agentic tools via automatic function calling (multi-step loop).
         if use_tools and settings.agent_tools_enabled:
-            kwargs["tools"] = AGENT_TOOLS
-            kwargs["automatic_function_calling"] = types.AutomaticFunctionCallingConfig(
-                maximum_remote_calls=settings.agent_max_tool_calls
-            )
+            try:
+                kwargs["tools"] = AGENT_TOOLS
+                kwargs["automatic_function_calling"] = types.AutomaticFunctionCallingConfig(
+                    maximum_remote_calls=settings.agent_max_tool_calls
+                )
+            except Exception:
+                pass
 
         return types.GenerateContentConfig(**kwargs)
 
@@ -167,16 +170,29 @@ apply, use your general knowledge.
         ))
 
         # Generate response (agentic loop handled by the SDK when tools are enabled)
+        target_model = model or self.model_name
         try:
             response = self.client.models.generate_content(
-                model=model or self.model_name,
+                model=target_model,
                 contents=contents,
                 config=self._build_config(system_prompt, use_tools=use_tools, model=model, deep_thinking=deep_thinking),
             )
             return response.text or "⚠️ No pude generar una respuesta. Intenta reformular tu pregunta."
         except Exception as e:
-            logger.error(f"Error generating response: {e}")
-            return self._format_friendly_error(e)
+            logger.warning(f"Primary generate_content failed ({e}); retrying with base config...")
+            try:
+                response = self.client.models.generate_content(
+                    model=target_model,
+                    contents=contents,
+                    config=types.GenerateContentConfig(
+                        system_instruction=system_prompt,
+                        temperature=settings.gemini_temperature,
+                    ),
+                )
+                return response.text or "⚠️ No pude generar una respuesta. Intenta reformular tu pregunta."
+            except Exception as e2:
+                logger.error(f"Error generating response: {e2}")
+                return self._format_friendly_error(e2)
     
     @staticmethod
     def _format_friendly_error(e: Exception) -> str:
@@ -246,9 +262,10 @@ apply, use your general knowledge.
             parts=[types.Part.from_text(text=user_input)]
         ))
 
+        target_model = model or self.model_name
         try:
             stream = self.client.models.generate_content_stream(
-                model=model or self.model_name,
+                model=target_model,
                 contents=contents,
                 config=self._build_config(system_prompt, use_tools=use_tools, model=model, deep_thinking=deep_thinking),
             )
@@ -257,8 +274,23 @@ apply, use your general knowledge.
                 if text:
                     yield text
         except Exception as e:
-            logger.error(f"Error streaming response: {e}")
-            yield f"\n\n{self._format_friendly_error(e)}"
+            logger.warning(f"Primary stream failed ({e}); retrying with base config...")
+            try:
+                stream = self.client.models.generate_content_stream(
+                    model=target_model,
+                    contents=contents,
+                    config=types.GenerateContentConfig(
+                        system_instruction=system_prompt,
+                        temperature=settings.gemini_temperature,
+                    ),
+                )
+                for chunk in stream:
+                    text = getattr(chunk, "text", None)
+                    if text:
+                        yield text
+            except Exception as e2:
+                logger.error(f"Error streaming response: {e2}")
+                yield f"\n\n{self._format_friendly_error(e2)}"
 
     def export_conversation_to_docx(self, history: List[Dict[str, str]], title: str = "Conversación") -> bytes:
         """

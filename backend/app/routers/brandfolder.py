@@ -310,7 +310,7 @@ async def debug_research_config(admin: dict = Depends(verify_admin_role)):
     try:
         from ..services.chat_service import ChatService
         chat = ChatService()
-        report["services"]["chat"] = "ok" if chat.llm else "ok (no key)"
+        report["services"]["chat"] = f"ok (model={chat.model_name})" if chat.client else "ok (no key)"
     except Exception as e:
         report["services"]["chat"] = f"failed: {str(e)}"
         

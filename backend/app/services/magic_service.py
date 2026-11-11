@@ -32,23 +32,26 @@ class MagicService:
             logger.error("GOOGLE_API_KEY not found in environment variables.")
             return "⚠️ Error: Configuración de API de Gemini no encontrada."
         try:
-            config_kwargs = {
-                "temperature": settings.gemini_temperature,
-            }
-            try:
-                config_kwargs["thinking_config"] = types.ThinkingConfig(thinking_budget=0)
-            except Exception:
-                pass
-
             response = self.client.models.generate_content(
                 model=self.model,
                 contents=prompt,
-                config=types.GenerateContentConfig(**config_kwargs),
+                config=types.GenerateContentConfig(
+                    temperature=settings.gemini_temperature,
+                ),
             )
             return response.text or ""
         except Exception as e:
-            logger.error(f"Gemini Generation Error: {e}")
-            return ChatService._format_friendly_error(e)
+            logger.warning(f"Primary Gemini call failed on {self.model} ({e}); retrying with fallback...")
+            try:
+                fallback_model = "gemini-2.5-flash" if self.model != "gemini-2.5-flash" else "gemini-2.0-flash"
+                response = self.client.models.generate_content(
+                    model=fallback_model,
+                    contents=prompt,
+                )
+                return response.text or ""
+            except Exception as e2:
+                logger.error(f"Gemini Generation Error: {e2}")
+                return ChatService._format_friendly_error(e2)
 
     def generate_sermon_outline(self, content: str, language: str = "es") -> str:
         lang_name = "Español" if language == "es" else "English"

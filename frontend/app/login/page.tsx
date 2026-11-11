@@ -101,10 +101,13 @@ export default function LoginPage() {
             >
                 {/* Branding */}
                 <div className="text-center mb-6 sm:mb-8">
-                    <h1 className="text-3xl sm:text-4xl font-bold font-heading bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent">
+                    <div className="inline-flex items-center justify-center h-11 w-11 rounded-xl bg-primary text-primary-foreground font-heading font-bold text-base shadow-sm mb-3">
+                        IA
+                    </div>
+                    <h1 className="text-3xl sm:text-4xl font-bold font-heading text-foreground tracking-tight">
                         Irresistible Agent
                     </h1>
-                    <p className="text-sm text-muted-foreground mt-2">Claridad, Recursos & Liderazgo</p>
+                    <p className="text-sm text-muted-foreground mt-1.5 font-medium">Claridad, Recursos & Liderazgo</p>
                 </div>
 
                 <Card className="w-full border-sidebar-border bg-card/50 backdrop-blur-xl shadow-2xl">
@@ -155,14 +158,6 @@ export default function LoginPage() {
                             {error && <p className="text-sm text-destructive font-medium">{error}</p>}
                             <Button type="submit" className="w-full bg-primary hover:bg-primary/90 transition-all shadow-lg shadow-primary/25" disabled={isLoading}>
                                 {isLoading ? t.auth.loggingIn : t.auth.signInButton}
-                            </Button>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => enterLocalPreview()}
-                                className="w-full border-primary/40 text-primary hover:bg-primary/10 font-semibold"
-                            >
-                                Entrar en Modo Vista Previa (Pastor Principal) →
                             </Button>
                         </form>
                     </CardContent>

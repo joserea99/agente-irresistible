@@ -209,14 +209,6 @@ export default function RegisterPage() {
                             >
                                 {isLoading ? t.loading : t.submit}
                             </Button>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                onClick={enterLocalPreview}
-                                className="w-full border-primary/40 text-primary hover:bg-primary/10 font-semibold"
-                            >
-                                Entrar en Modo Vista Previa (Pastor Principal) →
-                            </Button>
                         </form>
                     </CardContent>
                     <CardFooter className="flex flex-col space-y-2">

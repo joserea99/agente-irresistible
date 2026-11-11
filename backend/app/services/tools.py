@@ -1,8 +1,82 @@
 from .rag_service import RAGManager
+from .brandfolder_service import BrandfolderAPI
+from ..core.config import settings
 import requests
 from bs4 import BeautifulSoup
 from youtube_transcript_api import YouTubeTranscriptApi
 from urllib.parse import urlparse, parse_qs
+
+
+SPANISH_TO_ENGLISH_MAP = {
+    "matrimonio": "marriage",
+    "matrimonios": "marriage",
+    "parejas": "marriage",
+    "niños": "children",
+    "ninos": "children",
+    "infantil": "children",
+    "jóvenes": "students",
+    "jovenes": "students",
+    "adolescentes": "students",
+    "grupos": "groups",
+    "grupos pequeños": "community groups",
+    "voluntarios": "volunteer",
+    "voluntariado": "volunteer",
+    "finanzas": "generosity",
+    "dinero": "money",
+    "generosidad": "be rich",
+    "liderazgo": "leadership",
+    "bienvenida": "guest services",
+    "invitados": "guest services",
+    "atención al invitado": "guest services",
+    "anfitriones": "guest services",
+    "alabanza": "worship",
+    "música": "music",
+    "musica": "music",
+    "ansiedad": "anxiety",
+    "perdón": "forgiveness",
+    "perdon": "forgiveness",
+    "familia": "family",
+    "padres": "parent",
+    "fe": "faith",
+    "visión": "vision",
+    "vision": "vision",
+    "estrategia": "strategy",
+}
+
+
+def search_brandfolder_catalog(query: str) -> str:
+    """Searches the official ministry catalog of 1,821 assets, sermon series,
+    small group guides, kids curriculum, and leadership manuals.
+    Use this whenever the user asks about library resources, official series, or wants to compare/analyze
+    a document in light of the reference library."""
+    try:
+        bf = BrandfolderAPI(api_key=settings.brandfolder_api_key)
+        if not bf.is_configured():
+            return "Brandfolder API key is not configured."
+        brandfolders = bf.get_brandfolders()
+        if not brandfolders:
+            return "No Brandfolder collections available."
+        bf_id = brandfolders[0]["id"]
+        raw_q = (query or "").strip()
+        search_q = SPANISH_TO_ENGLISH_MAP.get(raw_q.lower(), raw_q)
+        if search_q == raw_q:
+            for es_term, en_term in SPANISH_TO_ENGLISH_MAP.items():
+                if es_term in raw_q.lower():
+                    search_q = en_term
+                    break
+        assets = bf.search_assets(bf_id, search_q, max_pages=1)
+        if not assets and search_q != raw_q:
+            assets = bf.search_assets(bf_id, raw_q, max_pages=1)
+        if not assets:
+            return f"No exact catalog assets matched '{query}'."
+        lines = []
+        for a in assets[:8]:
+            info = bf.extract_asset_info(a)
+            desc = (info.get("description") or "").replace("<p>", "").replace("</p>", " ").strip()
+            lines.append(f"- **{info.get('name')}**: {desc[:300]} (URL: {info.get('url')})")
+        return "Reference Library Resources found:\n" + "\n".join(lines)
+    except Exception as e:
+        return f"Error searching catalog: {e}"
 
 def get_youtube_transcript(url: str) -> str:
     """Extracts the transcript/captions from a YouTube video URL. Use this when the user shares a YouTube link."""
@@ -31,7 +105,7 @@ def get_youtube_transcript(url: str) -> str:
         return f"Error extracting transcript: {e} (Note: Video must have captions enabled)"
 
 def search_knowledge_base(query: str) -> str:
-    """Searches the church's internal knowledge base (Irresistible Church books,
+    """Searches the church's internal knowledge base (books,
     PDFs, sermons, crawled pages) for relevant information. Use this whenever the
     user asks about strategy, models, frameworks, ministry practices, or anything
     that may be documented in the church library. Returns relevant excerpts."""
@@ -39,7 +113,8 @@ def search_knowledge_base(query: str) -> str:
     rag = RAGManager()
     results = rag.search(query, n_results=5)
     if not results:
-        return "No relevant information found in the knowledge base."
+        print(f"🔄 Vector store returned no results for '{query}', falling back to live catalog search...")
+        return search_brandfolder_catalog(query)
     return results
 
 def browse_live_page(url: str) -> str:

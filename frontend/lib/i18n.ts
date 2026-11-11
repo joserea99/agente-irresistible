@@ -79,7 +79,7 @@ export const translations = {
             placeholder: "How can I help you with your church strategy today?",
             thinking: "Thinking...",
             error: "An error occurred. Please try again.",
-            initialMessage: "Hello! I am your Strategic Consultant for the Irresistible Church Network. How can I assist you today with service programming, creative content, or strategy?",
+            initialMessage: "Hello! I am your Strategic Consultant at Irresistible Agent. How can I assist you today with service programming, creative content, or ministry leadership?",
         },
         knowledge: {
             title: "Knowledge Base",
@@ -160,8 +160,8 @@ export const translations = {
     },
     es: {
         common: {
-            appName: "Agente Irresistible",
-            appTagline: "Inteligencia Estratégica Eclesiástica",
+            appName: "Irresistible Agent",
+            appTagline: "Claridad, Recursos y Liderazgo",
             loading: "Cargando...",
             logout: "Cerrar Sesión",
         },
@@ -236,7 +236,7 @@ export const translations = {
             placeholder: "¿En qué puedo ayudarte con tu estrategia hoy?",
             thinking: "Pensando...",
             error: "Ocurrió un error. Intente nuevamente.",
-            initialMessage: "¡Hola! Soy tu Consultor Estratégico para la Red de Iglesias Irresistibles. ¿Cómo puedo ayudarte hoy con la programación del servicio, el contenido creativo o la estrategia?",
+            initialMessage: "¡Hola! Soy tu Consultor Estratégico en Irresistible Agent. ¿Cómo puedo ayudarte hoy con la preparación de la semana, el liderazgo de tu área o el entrenamiento de tu equipo?",
         },
         knowledge: {
             title: "Base de Conocimiento",

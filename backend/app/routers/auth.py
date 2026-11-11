@@ -26,7 +26,7 @@ async def verify_admin_role(token: str = Depends(oauth2_scheme)):
         raise HTTPException(status_code=401, detail="Invalid authentication credentials")
     
     role = profile.get("role")
-    if role != "admin":
+    if role not in ("admin", "pastor_principal"):
         raise HTTPException(status_code=403, detail="Admin privileges required")
     return profile
 

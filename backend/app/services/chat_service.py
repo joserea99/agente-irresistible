@@ -10,14 +10,26 @@ import os
 import logging
 
 from .personas import PERSONAS
-from .tools import search_knowledge_base, browse_live_page, get_youtube_transcript
+from .tools import search_knowledge_base, search_brandfolder_catalog, browse_live_page, get_youtube_transcript
 from .church_service import church_profile_service
 from ..core.config import settings
 
 logger = logging.getLogger(__name__)
 
 # Tools the chat agent can call autonomously (agentic loop via google-genai AFC).
-AGENT_TOOLS = [search_knowledge_base, browse_live_page, get_youtube_transcript]
+AGENT_TOOLS = [search_knowledge_base, search_brandfolder_catalog, browse_live_page, get_youtube_transcript]
+
+DEEP_ANALYSIS_DIRECTIVE = """
+
+## MODO CLARIDAD Y ANÁLISIS PROFUNDO ACTIVADO (PARA PASTORES, DIRECTORES Y LÍDERES DE ÁREA):
+El usuario (que puede ser pastor, director, líder de grupo, maestro de niños, anfitrión o voluntario) necesita claridad profunda y entrenamiento práctico para resolver una situación o liderar mejor su área.
+Antes de redactar tu respuesta, analiza las tensiones humanas, relacionales y ministeriales de fondo.
+Estructura tu respuesta con claridad, empatía y enfoque 100% práctico:
+1. **Claridad de Fondo y "El Win" (La Victoria):** Qué está ocurriendo realmente en esta situación y cuál es el verdadero objetivo ("la victoria") en esta área.
+2. **Principio Rector (ADN Irresistible Agent):** Qué principio estratégico y pastoral aplica aquí y por qué.
+3. **Plan de Acción Paso a Paso:** Qué hacer hoy mismo, cómo manejar la dinámica con las personas involucradas y qué errores comunes evitar.
+4. **Guion Práctico / Qué Decir Exactamente:** Frases textuales, cálidas y claras listas para usar en la conversación, grupo o equipo.
+"""
 
 import re
 from io import BytesIO
@@ -69,6 +81,7 @@ class ChatService:
         system_prompt: str,
         use_tools: bool,
         model: Optional[str] = None,
+        deep_thinking: bool = False,
     ) -> types.GenerateContentConfig:
         """Build a GenerateContentConfig with persona, thinking, and (optionally) tools."""
         kwargs = {
@@ -76,10 +89,11 @@ class ChatService:
             "temperature": settings.gemini_temperature,
         }
 
-        # Extended reasoning ("thinking") — supported by Gemini 2.5 models.
+        # Extended reasoning ("thinking") — 0 in fast mode, 2048 in Deep Analysis mode.
         try:
+            budget = 2048 if deep_thinking else settings.gemini_thinking_budget
             kwargs["thinking_config"] = types.ThinkingConfig(
-                thinking_budget=settings.gemini_thinking_budget
+                thinking_budget=budget
             )
         except Exception:
             pass
@@ -101,6 +115,7 @@ class ChatService:
         rag_context: Optional[str] = None,
         use_tools: bool = True,
         model: Optional[str] = None,
+        deep_thinking: bool = False,
     ) -> str:
         """
         Generate an AI response.
@@ -114,6 +129,8 @@ class ChatService:
 
         # Get system prompt for selected director
         system_prompt = PERSONAS.get(director, PERSONAS["Programación de Servicio"])
+        if deep_thinking:
+            system_prompt += DEEP_ANALYSIS_DIRECTIVE
 
         # Inject church memory (who this church is) so advice is context-specific
         try:
@@ -154,13 +171,27 @@ apply, use your general knowledge.
             response = self.client.models.generate_content(
                 model=model or self.model_name,
                 contents=contents,
-                config=self._build_config(system_prompt, use_tools=use_tools, model=model),
+                config=self._build_config(system_prompt, use_tools=use_tools, model=model, deep_thinking=deep_thinking),
             )
             return response.text or "⚠️ No pude generar una respuesta. Intenta reformular tu pregunta."
         except Exception as e:
             logger.error(f"Error generating response: {e}")
-            return f"❌ Error generating response: {str(e)}"
+            return self._format_friendly_error(e)
     
+    @staticmethod
+    def _format_friendly_error(e: Exception) -> str:
+        """Convert raw API/SDK exceptions into clean, user-friendly messages."""
+        raw = str(e)
+        if "402" in raw or "prepayment credits" in raw.lower() or "RESOURCE_EXHAUSTED" in raw:
+            return (
+                "⚠️ **Servicio de inteligencia temporalmente en mantenimiento de cuota.**\n\n"
+                "El saldo de créditos de Google AI Studio requiere actualización en el panel de administración. "
+                "Por favor intenta nuevamente en unos minutos."
+            )
+        if "429" in raw or "rate limit" in raw.lower():
+            return "⚠️ **Alta demanda en este momento.** Por favor espera unos segundos e intenta de nuevo."
+        return "⚠️ **No pudimos completar la consulta en este momento.** Por favor intenta de nuevo en unos instantes."
+
     def generate_response_stream(
         self,
         user_input: str,
@@ -169,6 +200,7 @@ apply, use your general knowledge.
         rag_context: Optional[str] = None,
         use_tools: bool = True,
         model: Optional[str] = None,
+        deep_thinking: bool = False,
     ):
         """
         Stream an AI response token-by-token (generator yielding text chunks).
@@ -180,6 +212,8 @@ apply, use your general knowledge.
             return
 
         system_prompt = PERSONAS.get(director, PERSONAS["Programación de Servicio"])
+        if deep_thinking:
+            system_prompt += DEEP_ANALYSIS_DIRECTIVE
 
         # Inject church memory (who this church is) so advice is context-specific
         try:
@@ -216,7 +250,7 @@ apply, use your general knowledge.
             stream = self.client.models.generate_content_stream(
                 model=model or self.model_name,
                 contents=contents,
-                config=self._build_config(system_prompt, use_tools=use_tools, model=model),
+                config=self._build_config(system_prompt, use_tools=use_tools, model=model, deep_thinking=deep_thinking),
             )
             for chunk in stream:
                 text = getattr(chunk, "text", None)
@@ -224,7 +258,7 @@ apply, use your general knowledge.
                     yield text
         except Exception as e:
             logger.error(f"Error streaming response: {e}")
-            yield f"\n\n❌ Error generando respuesta: {str(e)}"
+            yield f"\n\n{self._format_friendly_error(e)}"
 
     def export_conversation_to_docx(self, history: List[Dict[str, str]], title: str = "Conversación") -> bytes:
         """
@@ -246,7 +280,7 @@ apply, use your general knowledge.
         title_para = doc.add_heading(title, 0)
         title_para.alignment = WD_ALIGN_CENTER
         
-        doc.add_paragraph(f"Exportado desde Iglesia Irresistible OS")
+        doc.add_paragraph(f"Exportado desde Irresistible Agent")
         doc.add_paragraph("")
         
         for msg in history:

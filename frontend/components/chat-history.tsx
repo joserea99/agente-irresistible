@@ -36,7 +36,8 @@ export function ChatHistorySidebar({
     const fetchHistory = async () => {
         try {
             const response = await api.get("/chat/history/current");
-            setSessions(response.data.sessions);
+            const list = Array.isArray(response.data) ? response.data : (response.data?.sessions || []);
+            setSessions(list);
         } catch (error) {
             console.error("Error fetching history:", error);
         } finally {

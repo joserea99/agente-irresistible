@@ -16,8 +16,8 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: "Irresistible Agent | Strategic Church Intelligence",
-  description: "AI-Powered Consultant for the Irresistible Church Network",
+  title: "Irresistible Agent | Claridad, Recursos y Entrenamiento para Líderes",
+  description: "Prepara tu semana, equipa a tus líderes y accede a la biblioteca estratégica de recursos ministeriales.",
 };
 
 export default function RootLayout({
@@ -26,7 +26,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark" suppressHydrationWarning>
+    <html lang="es" suppressHydrationWarning>
       <body
         className={`${inter.variable} ${outfit.variable} font-sans antialiased bg-background text-foreground`}
       >

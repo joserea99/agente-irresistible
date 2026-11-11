@@ -156,7 +156,7 @@ export const getDashboardConfig = (role: string = "member", t: any): DashboardCo
     const MEDIA_DIRECTOR_CONFIG: DashboardConfig = {
         greeting: (name) => `${t.dashboard.welcome}, ${name}?`,
         stats: [
-            { label: t.dashboard.knowledgeBase, value: "Indexed", icon: Library, color: "text-pink-500", desc: "Brandfolder Connected" },
+            { label: t.dashboard.knowledgeBase, value: "Indexed", icon: Library, color: "text-pink-500", desc: "Library Connected" },
             { label: "Social Reach", value: "Growing", icon: Megaphone, color: "text-blue-500", desc: "Engagement Up" },
             { label: "Production", value: "Stable", icon: Video, color: "text-green-500", desc: "System Check" },
         ],

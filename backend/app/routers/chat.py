@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, Response
+from fastapi import APIRouter, HTTPException, Depends, Response, UploadFile, File
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict
@@ -26,6 +26,7 @@ class ChatRequest(BaseModel):
     session_id: Optional[str] = None
     director: str = "Programación de Servicio"
     rag_enabled: bool = False
+    deep_thinking: bool = False
     history: List[Message] = [] # Optional, for context if sessions fail, but usually we load from DB
 
 class ChatResponse(BaseModel):
@@ -114,7 +115,8 @@ async def send_message(
             user_input=request.message,
             history=history_dicts[:-1], # Exclude current message as it's passed separately or double counted
             director=request.director,
-            rag_context=rag_context
+            rag_context=rag_context,
+            deep_thinking=request.deep_thinking,
         )
         
         # 5. Save AI Response
@@ -178,6 +180,7 @@ async def stream_message(
                 history=history_dicts,
                 director=request.director,
                 rag_context=rag_context,
+                deep_thinking=request.deep_thinking,
             ):
                 collected.append(chunk)
                 yield chunk
@@ -206,6 +209,112 @@ async def stream_message(
 @router.get("/directors")
 async def get_directors(chat_service: ChatService = Depends(get_chat_service)):
     return {"directors": chat_service.get_directors()}
+
+
+@router.post("/extract-document")
+async def extract_document_for_analysis(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(verify_active_user),
+):
+    """
+    Extract text from an uploaded document (.pdf, .docx, .pptx, .txt, .md)
+    and find matching Brandfolder ICN resources so the specialist can analyze it
+    in light of the official Irresistible Church Network catalog.
+    """
+    try:
+        raw_bytes = await file.read()
+        filename = file.filename or "documento"
+        lower_name = filename.lower()
+        extracted_text = ""
+
+        if lower_name.endswith(".pdf"):
+            import pypdf
+            reader = pypdf.PdfReader(BytesIO(raw_bytes))
+            pages = [page.extract_text() or "" for page in reader.pages]
+            extracted_text = "\n\n".join(p.strip() for p in pages if p.strip())
+
+        elif lower_name.endswith(".docx"):
+            from docx import Document
+            doc = Document(BytesIO(raw_bytes))
+            parts = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
+            for table in doc.tables:
+                for row in table.rows:
+                    row_text = " | ".join(cell.text.strip() for cell in row.cells if cell.text.strip())
+                    if row_text:
+                        parts.append(row_text)
+            extracted_text = "\n".join(parts)
+
+        elif lower_name.endswith(".pptx"):
+            from pptx import Presentation
+            prs = Presentation(BytesIO(raw_bytes))
+            slide_texts = []
+            for idx, slide in enumerate(prs.slides, 1):
+                shapes_text = []
+                for shape in slide.shapes:
+                    if hasattr(shape, "text") and shape.text.strip():
+                        shapes_text.append(shape.text.strip())
+                if shapes_text:
+                    slide_texts.append(f"[Diapositiva {idx}]\n" + "\n".join(shapes_text))
+            extracted_text = "\n\n".join(slide_texts)
+
+        elif lower_name.endswith((".txt", ".md", ".csv")):
+            try:
+                extracted_text = raw_bytes.decode("utf-8")
+            except UnicodeDecodeError:
+                extracted_text = raw_bytes.decode("latin-1", errors="ignore")
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Formato no soportado. Sube un archivo .pdf, .docx, .pptx, .txt o .md",
+            )
+
+        extracted_text = extracted_text.strip()
+        if not extracted_text:
+            raise HTTPException(
+                status_code=400,
+                detail="No se pudo extraer texto legible del documento.",
+            )
+
+        # Find related Brandfolder ICN resources based on document title / keywords
+        brandfolder_matches = []
+        try:
+            from ..services.brandfolder_service import BrandfolderAPI
+            from ..core.config import settings
+            from .brandfolder import SPANISH_TO_ENGLISH_TERMS
+
+            bf = BrandfolderAPI(api_key=settings.brandfolder_api_key)
+            if bf.is_configured():
+                bfs = bf.get_brandfolders()
+                if bfs:
+                    bf_id = bfs[0]["id"]
+                    sample_text = f"{filename} {extracted_text[:600]}".lower()
+                    matched_en_terms = []
+                    for es_term, en_term in SPANISH_TO_ENGLISH_TERMS.items():
+                        if es_term in sample_text:
+                            matched_en_terms.append(en_term.split()[0])
+                    search_q = matched_en_terms[0] if matched_en_terms else "strategy"
+                    raw_assets = bf.search_assets(bf_id, search_q, max_pages=1)
+                    for a in raw_assets[:5]:
+                        info = bf.extract_asset_info(a)
+                        brandfolder_matches.append({
+                            "name": info.get("name", ""),
+                            "description": (info.get("description") or "")[:240],
+                            "url": info.get("url", ""),
+                        })
+        except Exception as bf_err:
+            logger.warning(f"Brandfolder lookup for uploaded doc failed: {bf_err}")
+
+        return {
+            "filename": filename,
+            "text": extracted_text[:25000],
+            "char_count": len(extracted_text),
+            "brandfolder_matches": brandfolder_matches,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error extracting uploaded document: {e}")
+        raise HTTPException(status_code=500, detail=f"Error al procesar el documento: {str(e)}")
 
 @router.post("/export")
 async def export_conversation(

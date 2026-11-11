@@ -42,9 +42,9 @@ class Settings(BaseSettings):
 
     # --- Agent behavior ---
     # Thinking budget: -1 = dynamic (model decides), 0 = off, >0 = fixed token budget.
-    gemini_thinking_budget: int = -1
+    gemini_thinking_budget: int = 0
     agent_tools_enabled: bool = True                  # Let the chat agent call tools (RAG search, browse, YouTube)
-    agent_max_tool_calls: int = 5                     # Max tool-call rounds per response (agentic loop)
+    agent_max_tool_calls: int = 3                     # Max tool-call rounds per response (agentic loop)
 
     # --- Rate Limiting ---
     rate_limit_chat: str = "30/minute"

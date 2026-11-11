@@ -38,56 +38,58 @@
 }
 
 :root {
-  /* Premium Dark Mode Defaults */
+  /* Warm Editorial & Executive Ministerial Palette (Inspired by Subsplash / Claude / North Point) */
   --radius: 0.75rem;
-  --background: oklch(0.12 0.02 260);
-  --foreground: oklch(0.98 0 0);
-  --card: oklch(0.16 0.03 260);
-  --card-foreground: oklch(0.98 0 0);
-  --popover: oklch(0.16 0.03 260);
-  --popover-foreground: oklch(0.98 0 0);
-  --primary: oklch(0.65 0.25 260);
-  /* Vibrant Deep Blue */
-  --primary-foreground: oklch(0.98 0 0);
-  --secondary: oklch(0.25 0.05 260);
-  --secondary-foreground: oklch(0.98 0 0);
-  --muted: oklch(0.20 0.02 260);
-  --muted-foreground: oklch(0.70 0.02 260);
-  --accent: oklch(0.25 0.05 260);
-  --accent-foreground: oklch(0.98 0 0);
-  --destructive: oklch(0.60 0.20 20);
-  --border: oklch(0.20 0.02 260);
-  --input: oklch(0.20 0.02 260);
-  --ring: oklch(0.65 0.25 260);
+  --background: oklch(0.982 0.006 75);
+  --foreground: oklch(0.18 0.015 55);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.18 0.015 55);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.18 0.015 55);
+  /* Warm Terracotta / Executive Bronze-Amber */
+  --primary: oklch(0.50 0.155 40);
+  --primary-foreground: oklch(0.99 0.005 75);
+  --secondary: oklch(0.945 0.012 75);
+  --secondary-foreground: oklch(0.24 0.015 55);
+  --muted: oklch(0.95 0.01 75);
+  --muted-foreground: oklch(0.46 0.015 55);
+  --accent: oklch(0.935 0.02 65);
+  --accent-foreground: oklch(0.22 0.02 45);
+  --destructive: oklch(0.55 0.20 25);
+  --border: oklch(0.895 0.012 75);
+  --input: oklch(0.895 0.012 75);
+  --ring: oklch(0.50 0.155 40);
 
-  --sidebar: oklch(0.10 0.02 260);
-  --sidebar-foreground: oklch(0.98 0 0);
-  --sidebar-primary: oklch(0.65 0.25 260);
-  --sidebar-primary-foreground: oklch(0.98 0 0);
-  --sidebar-accent: oklch(0.16 0.03 260);
-  --sidebar-accent-foreground: oklch(0.98 0 0);
-  --sidebar-border: oklch(0.20 0.02 260);
-  --sidebar-ring: oklch(0.65 0.25 260);
+  --sidebar: oklch(0.962 0.009 75);
+  --sidebar-foreground: oklch(0.20 0.015 55);
+  --sidebar-primary: oklch(0.50 0.155 40);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.925 0.016 70);
+  --sidebar-accent-foreground: oklch(0.18 0.015 55);
+  --sidebar-border: oklch(0.89 0.012 75);
+  --sidebar-ring: oklch(0.50 0.155 40);
 }
 
 .dark {
-  /* Same as root for now, enforcing dark mode primarily */
-  --background: oklch(0.12 0.02 260);
-  --foreground: oklch(0.98 0 0);
-  --card: oklch(0.16 0.03 260);
-  --card-foreground: oklch(0.98 0 0);
-  --primary: oklch(0.65 0.25 260);
-  --primary-foreground: oklch(0.98 0 0);
-  --secondary: oklch(0.25 0.05 260);
-  --secondary-foreground: oklch(0.98 0 0);
-  --muted: oklch(0.20 0.02 260);
-  --muted-foreground: oklch(0.70 0 0);
-  --accent: oklch(0.25 0.05 260);
-  --accent-foreground: oklch(0.98 0 0);
-  --destructive: oklch(0.60 0.20 20);
-  --border: oklch(0.20 0.02 260);
-  --input: oklch(0.20 0.02 260);
-  --ring: oklch(0.65 0.25 260);
+  /* Architectural Warm Obsidian (if dark mode is toggled) */
+  --background: oklch(0.16 0.01 60);
+  --foreground: oklch(0.95 0.008 75);
+  --card: oklch(0.20 0.012 60);
+  --card-foreground: oklch(0.95 0.008 75);
+  --popover: oklch(0.20 0.012 60);
+  --popover-foreground: oklch(0.95 0.008 75);
+  --primary: oklch(0.64 0.155 42);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.25 0.015 60);
+  --secondary-foreground: oklch(0.95 0.008 75);
+  --muted: oklch(0.24 0.012 60);
+  --muted-foreground: oklch(0.70 0.01 70);
+  --accent: oklch(0.26 0.02 55);
+  --accent-foreground: oklch(0.95 0.008 75);
+  --destructive: oklch(0.60 0.20 25);
+  --border: oklch(0.27 0.012 60);
+  --input: oklch(0.27 0.012 60);
+  --ring: oklch(0.64 0.155 42);
 }
 
 @layer base {
@@ -99,26 +101,41 @@
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-heading tracking-tight;
+  }
 }
 
-@layer utilities {
-  .custom-scrollbar::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
+/* Custom Editorial Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
 
-  .custom-scrollbar::-webkit-scrollbar-track {
-    background: transparent;
-  }
+::-webkit-scrollbar-track {
+  background: transparent;
+}
 
-  .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: oklch(0.25 0.05 260);
-    /* accent */
-    border-radius: 3px;
-  }
+::-webkit-scrollbar-thumb {
+  background: oklch(0.78 0.015 70 / 0.5);
+  border-radius: 9999px;
+}
 
-  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: oklch(0.65 0.25 260);
-    /* primary */
-  }
+::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.60 0.02 60 / 0.7);
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }

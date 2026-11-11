@@ -5,6 +5,9 @@ from .personas import PERSONAS
 from .dojo_scenarios import EVALUATOR_PROMPTS
 import os
 import inspect
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 # Define the Persona
@@ -25,31 +28,50 @@ If you search the knowledge base or browse a page, cite your source.
 """
 
 class AgentEngine:
-    def __init__(self, api_key=None):
+    def __init__(self, api_key=None, mcp_registry=None, user_role="member"):
         # Allow passing key dynamically
         self.api_key = api_key or os.environ.get("GOOGLE_API_KEY")
-        
+        self.mcp_registry = mcp_registry
+        self.user_role = user_role
+
         if self.api_key:
             self.client = genai.Client(api_key=self.api_key)
             self.model_name = "gemini-2.5-flash"
-            
-            # Map tools for execution
+
+            # Map tools for execution (builtin + MCP)
             self.tools_map = {
                 "search_knowledge_base": search_knowledge_base,
                 "browse_live_page": browse_live_page,
                 "get_youtube_transcript": get_youtube_transcript
             }
-            
-            # Convert tools to Gemini Tool Definition
-            # Note: This is an approximation. Ideally we inspect the functions.
-            # For simplicity in this migration, we are defining them as function declarations.
-            # However, google-genai SDK 1.0+ can often infer from python functions if passed directly.
-            
-            # We'll pass the functions directly to the tools list if supported, or wrapped
+
+            # Register MCP tools in the tools map
+            if self.mcp_registry:
+                mcp_tools = self.mcp_registry.get_available_tools(user_role=self.user_role)
+                for tool in mcp_tools:
+                    self.tools_map[tool["name"]] = self._make_mcp_tool_caller(
+                        tool["server"], tool["original_name"]
+                    )
+                if mcp_tools:
+                    logger.info(f"AgentEngine: registered {len(mcp_tools)} MCP tool(s) for role {user_role}")
+
             self.tools_config = [search_knowledge_base, browse_live_page, get_youtube_transcript]
-            
+
         else:
             self.client = None
+
+    def _make_mcp_tool_caller(self, server_name: str, tool_name: str):
+        """Create a callable wrapper for an MCP tool."""
+        registry = self.mcp_registry
+        role = self.user_role
+
+        def mcp_tool_call(**kwargs):
+            result = registry.call_tool(server_name, tool_name, kwargs, user_role=role)
+            return str(result)
+
+        mcp_tool_call.__name__ = f"mcp__{server_name}__{tool_name}"
+        mcp_tool_call.__doc__ = f"MCP tool: {tool_name} from {server_name}"
+        return mcp_tool_call
 
     def generate_response(self, user_input, history=[], persona_key="Programación de Servicio", system_prompt_override=None, rag_context=None):
         """Generates a response using tools and a specific persona."""

@@ -115,25 +115,32 @@ function SubscriptionContent() {
                 transition={{ duration: 0.5 }}
                 className="max-w-4xl w-full grid md:grid-cols-2 gap-8"
             >
-                {/* Left side: Message */}
+                {/* Left side: Value Proposition */}
                 <div className="flex flex-col justify-center space-y-6">
                     <div>
-                        <h1 className="text-4xl font-bold font-heading mb-2 text-primary">Acceso Bloqueado</h1>
-                        <p className="text-xl text-muted-foreground">Tu periodo de prueba ha finalizado.</p>
+                        <span className="text-xs font-bold uppercase tracking-wider text-primary">
+                            Membresía Ministerial Todo Incluido
+                        </span>
+                        <h1 className="text-3xl md:text-4xl font-bold font-heading mt-1 mb-2 text-foreground">
+                            Equipa a tu iglesia cada domingo
+                        </h1>
+                        <p className="text-base text-muted-foreground">
+                            Activa tu suscripción para seguir produciendo tus materiales semanales y accediendo a la biblioteca completa de la red.
+                        </p>
                     </div>
 
-                    <div className="space-y-4">
+                    <div className="space-y-3.5 text-sm">
                         <div className="flex items-start gap-3">
-                            <CheckCircle className="h-6 w-6 text-green-500 shrink-0" />
-                            <p>Acceso ilimitado al Agente Estratégico</p>
+                            <CheckCircle className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                            <p><strong>Prepara tu Semana en 1 Clic:</strong> Bosquejo de 5 Movimientos, Guía de Grupos Pequeños, Lección de Niños y Familia, Orden de Servicio y Pack de WhatsApp.</p>
                         </div>
                         <div className="flex items-start gap-3">
-                            <CheckCircle className="h-6 w-6 text-green-500 shrink-0" />
-                            <p>Inteligencia artificial entrenada con el modelo Irresistible</p>
+                            <CheckCircle className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                            <p><strong>Biblioteca de Recursos (1,812):</strong> Series de predicación, guías y manuales ministeriales listos para traducir y adaptar.</p>
                         </div>
                         <div className="flex items-start gap-3">
-                            <CheckCircle className="h-6 w-6 text-green-500 shrink-0" />
-                            <p>Base de Conocimiento segura para tu iglesia</p>
+                            <CheckCircle className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                            <p><strong>Consulta con los Especialistas + Entrenamiento:</strong> Asesoría estratégica en 11 áreas ministeriales y entrenamiento práctico para tus líderes y voluntarios.</p>
                         </div>
                     </div>
                 </div>
@@ -144,7 +151,7 @@ function SubscriptionContent() {
                         <Star className="h-12 w-12 text-yellow-500 opacity-20" />
                     </div>
                     <CardHeader>
-                        <CardTitle className="text-2xl">Plan Iglesia Irresistible</CardTitle>
+                        <CardTitle className="text-2xl">Plan Irresistible Agent</CardTitle>
                         <CardDescription>Suscripción Mensual</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">

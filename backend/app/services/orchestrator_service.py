@@ -266,6 +266,7 @@ Examples: ["Niños (NextGen)", "Adultos (Grupos)"] or []"""
             history=history,
             director=primary_director,
             rag_context=rag_context,
+            deep_thinking=True,
         )
 
         return {

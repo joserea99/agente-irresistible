@@ -40,12 +40,14 @@ export default function AdminPage() {
     const [diagnosis, setDiagnosis] = useState<any>(null);
     const [isDiagnosing, setIsDiagnosing] = useState(false);
 
+    const isAdminOrLead = user?.role === 'admin' || user?.role === 'pastor_principal';
+
     // Protected Route Check
     useEffect(() => {
-        if (user && user.role !== 'admin') {
+        if (user && !isAdminOrLead) {
             router.push('/dashboard');
         }
-    }, [user, router]);
+    }, [user, isAdminOrLead, router]);
 
     const fetchUsers = async () => {
         try {
@@ -59,12 +61,12 @@ export default function AdminPage() {
     };
 
     useEffect(() => {
-        if (user?.role === 'admin') {
+        if (isAdminOrLead) {
             fetchUsers();
             fetchSyncStatus();
             fetchCoverage();
         }
-    }, [user]);
+    }, [user, isAdminOrLead]);
 
     const fetchSyncStatus = async () => {
         try {
@@ -114,7 +116,7 @@ export default function AdminPage() {
     };
 
     const handleTriggerSync = async () => {
-        if (!confirm("¿Lanzar sincronización completa del Brandfolder? Solo se indexará contenido NUEVO. La memoria existente NO se modifica.")) return;
+        if (!confirm("¿Lanzar sincronización completa de la Biblioteca Central? Solo se indexará contenido NUEVO. La memoria existente NO se modifica.")) return;
         setIsSyncing(true);
         setSyncMessage("");
         try {
@@ -159,7 +161,7 @@ export default function AdminPage() {
         }
     };
 
-    if (user?.role !== 'admin') return <div className="p-8 text-center">Unauthorized</div>;
+    if (!isAdminOrLead) return <div className="p-8 text-center">Unauthorized</div>;
 
     const availableRoles = Array.from(new Set([
         "admin",
@@ -303,7 +305,7 @@ export default function AdminPage() {
                                     Sincronización de Conocimiento
                                 </CardTitle>
                                 <CardDescription>
-                                    Escanea toda la biblioteca del Brandfolder e indexa el contenido nuevo en la memoria del agente.
+                                    Escanea toda la Biblioteca Central e indexa el contenido nuevo en la memoria del agente.
                                     El contenido ya existente NO se toca.
                                 </CardDescription>
                             </CardHeader>
@@ -395,7 +397,7 @@ export default function AdminPage() {
                                         </div>
                                         {typeof coverage.brandfolder_documents === "number" && (
                                             <p className="text-xs text-muted-foreground mt-3">
-                                                De Brandfolder: {coverage.brandfolder_documents} documentos indexados.
+                                                De la Biblioteca Central: {coverage.brandfolder_documents} documentos indexados.
                                             </p>
                                         )}
                                     </div>
@@ -439,7 +441,7 @@ export default function AdminPage() {
                                         <div className="flex flex-wrap items-center gap-6">
                                             <div>
                                                 <span className="text-2xl font-bold">{diagnosis.all_collection_total ?? "—"}</span>
-                                                <span className="text-xs text-muted-foreground"> activos reales en Brandfolder</span>
+                                                <span className="text-xs text-muted-foreground"> activos reales en la Biblioteca Central</span>
                                             </div>
                                             <div>
                                                 <span className="text-2xl font-bold">{diagnosis.collections_count ?? 0}</span>

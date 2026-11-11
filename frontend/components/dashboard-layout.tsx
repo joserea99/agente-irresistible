@@ -5,7 +5,17 @@ import { supabase } from "@/lib/supabase";
 import { useLanguage } from "@/lib/language-context";
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Sidebar, LayoutDashboard, MessageSquare, LogOut, ChevronRight, Menu, Globe, Swords, ShieldAlert } from "lucide-react";
+import {
+    LayoutDashboard,
+    Users,
+    LogOut,
+    Menu,
+    Globe,
+    Swords,
+    ShieldAlert,
+    BookOpen,
+    Sparkles,
+} from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -19,15 +29,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const pathname = usePathname();
 
     const [isHydrated, setIsHydrated] = useState(false);
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
     useEffect(() => {
         setIsHydrated(true);
 
-        // Listen for Auth Changes from Supabase Client (handles refresh automatically)
         const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
             if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
                 if (session) {
-                    // Fetch latest profile to ensure role/subscription is up to date
                     const fetchProfile = async () => {
                         const { data: profile } = await supabase
                             .from('profiles')
@@ -60,69 +69,153 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         }
     }, [token, router, isHydrated]);
 
-    if (!isHydrated) return null; // Or a loading spinner
+    if (!isHydrated) return null;
     if (!user) return null;
 
+    const isEs = language === 'es';
+
     const links = [
-        { href: "/dashboard", label: t.dashboard.overview, icon: LayoutDashboard },
-        { href: "/chat", label: t.dashboard.strategicAgent, icon: MessageSquare },
-        { href: "/dojo", label: t.dojo.title, icon: Swords },
-        ...(user.role === 'admin' ? [
-            { href: "/admin", label: "Admin Console", icon: ShieldAlert },
+        {
+            href: "/dashboard",
+            label: isEs ? "Centro de Mando" : "Command Center",
+            shortLabel: isEs ? "Inicio" : "Home",
+            icon: LayoutDashboard,
+        },
+        {
+            href: "/studio",
+            label: isEs ? "Prepara tu Semana" : "Prepare Your Week",
+            shortLabel: isEs ? "Tu Semana" : "Weekly",
+            icon: BookOpen,
+            badge: isEs ? "1-Clic" : "1-Click",
+        },
+        {
+            href: "/chat",
+            label: isEs ? "Consulta con Especialistas" : "Ask the Specialists",
+            shortLabel: isEs ? "Especialistas" : "Specialists",
+            icon: Users,
+        },
+        {
+            href: "/dojo",
+            label: isEs ? "Entrenamiento de Líderes" : "Leadership Dojo",
+            shortLabel: isEs ? "Entrenar" : "Train",
+            icon: Swords,
+        },
+        ...((user.role === 'admin' || user.role === 'pastor_principal') ? [
+            {
+                href: "/admin",
+                label: isEs ? "Administración y Sync" : "Admin & Sync",
+                shortLabel: "Admin",
+                icon: ShieldAlert,
+            },
         ] : []),
     ];
 
     const SidebarContent = () => (
-        <div className="flex flex-col h-full">
-            <div className="p-6 border-b border-sidebar-border/50">
-                <h1 className="text-xl font-bold font-heading text-primary bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent">
-                    Irresistible
-                </h1>
-                <p className="text-xs text-muted-foreground">Strategic Church AI</p>
+        <div className="flex flex-col h-full bg-sidebar text-sidebar-foreground">
+            <div className="p-6 border-b border-sidebar-border">
+                <div className="flex items-center gap-2.5">
+                    <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-heading font-bold text-sm shadow-sm">
+                        IA
+                    </div>
+                    <div>
+                        <h1 className="text-base font-bold font-heading tracking-tight text-foreground leading-none">
+                            Irresistible Agent
+                        </h1>
+                        <p className="text-[11px] text-muted-foreground mt-1 font-medium">
+                            {isEs ? "Claridad, Recursos & Liderazgo" : "Clarity, Resources & Leadership"}
+                        </p>
+                    </div>
+                </div>
             </div>
-            <div className="flex-1 py-6 px-3 space-y-1">
-                {links.map((link) => (
-                    <Link key={link.href} href={link.href}>
-                        <Button
-                            variant="ghost"
-                            className={cn(
-                                "w-full justify-start gap-3 transition-all duration-200",
-                                pathname === link.href
-                                    ? "bg-sidebar-accent text-primary shadow-md font-medium"
-                                    : "text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/50"
-                            )}
+
+            <div className="flex-1 py-5 px-3 space-y-1">
+                <div className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                    {isEs ? "Espacios de Trabajo" : "Workspaces"}
+                </div>
+                {links.map((link) => {
+                    const isActive = pathname === link.href;
+                    return (
+                        <Link
+                            key={link.href}
+                            href={link.href}
+                            className="block"
+                            onClick={() => setMobileMenuOpen(false)}
                         >
-                            <link.icon className="h-4 w-4" />
-                            {link.label}
-                            {pathname === link.href && (
-                                <motion.div layoutId="active-pill" className="ml-auto w-1 h-4 bg-primary rounded-full" />
-                            )}
-                        </Button>
+                            <Button
+                                variant="ghost"
+                                className={cn(
+                                    "w-full justify-start gap-3 h-10 px-3 transition-all duration-150 rounded-lg",
+                                    isActive
+                                        ? "bg-card text-primary shadow-xs border border-border/80 font-semibold"
+                                        : "text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/70 font-normal"
+                                )}
+                            >
+                                <link.icon className={cn("h-4 w-4 shrink-0", isActive ? "text-primary" : "text-muted-foreground")} />
+                                <span className="truncate text-sm">{link.label}</span>
+                                {link.badge && (
+                                    <span className="ml-auto text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-primary/12 text-primary">
+                                        {link.badge}
+                                    </span>
+                                )}
+                                {!link.badge && isActive && (
+                                    <motion.div layoutId="active-pill" className="ml-auto w-1.5 h-1.5 bg-primary rounded-full" />
+                                )}
+                            </Button>
+                        </Link>
+                    );
+                })}
+
+                {/* Highlight CTA to Sunday Studio */}
+                <div className="pt-4 px-1">
+                    <Link href="/studio" onClick={() => setMobileMenuOpen(false)}>
+                        <div className="rounded-xl p-3.5 bg-gradient-to-br from-primary/12 via-primary/6 to-transparent border border-primary/20 hover:border-primary/40 transition-all cursor-pointer">
+                            <div className="flex items-center gap-2 text-xs font-semibold text-primary mb-1">
+                                <Sparkles className="h-3.5 w-3.5" />
+                                {isEs ? "Prepara tu Semana" : "Prepare Your Week"}
+                            </div>
+                            <p className="text-[11px] text-muted-foreground leading-relaxed">
+                                {isEs
+                                    ? "Genera bosquejo, guía de grupos, lección de niños y orden de servicio en 1 clic."
+                                    : "Generate sermon outline, group guide, kids lesson & run sheet in 1 click."}
+                            </p>
+                        </div>
                     </Link>
-                ))}
+                </div>
             </div>
-            <div className="p-4 border-t border-sidebar-border/50 space-y-3">
+
+            <div className="p-4 border-t border-sidebar-border space-y-3 bg-sidebar">
                 <Button
                     variant="ghost"
                     size="sm"
-                    className="w-full justify-start gap-3 text-muted-foreground hover:text-foreground"
+                    className="w-full justify-start gap-2.5 text-xs text-muted-foreground hover:text-foreground h-8"
                     onClick={toggleLanguage}
                 >
-                    <Globe className="h-4 w-4" />
-                    {language === 'en' ? 'Cambiar a Español' : 'Switch to English'}
+                    <Globe className="h-3.5 w-3.5" />
+                    {language === 'en' ? 'Idioma: Español' : 'Language: English'}
                 </Button>
 
-                <div className="flex items-center gap-3 px-2">
-                    <div className="h-8 w-8 rounded-full bg-gradient-to-tr from-primary to-accent flex items-center justify-center text-white font-bold text-xs ring-2 ring-background">
-                        {user.full_name?.[0] || "U"}
+                <div className="flex items-center gap-3 px-2 py-1.5 rounded-lg bg-card/60 border border-border/60">
+                    <div className="h-8 w-8 rounded-full bg-primary/15 text-primary flex items-center justify-center font-bold text-xs shrink-0">
+                        {user.full_name?.[0]?.toUpperCase() || "L"}
                     </div>
-                    <div className="overflow-hidden">
-                        <p className="text-sm font-medium truncate">{user.full_name}</p>
-                        <p className="text-xs text-muted-foreground truncate capitalize">{user.role}</p>
+                    <div className="overflow-hidden flex-1">
+                        <p className="text-xs font-semibold text-foreground truncate">{user.full_name}</p>
+                        <p className="text-[11px] text-muted-foreground truncate capitalize">
+                            {user.role.replace(/_/g, ' ')}
+                        </p>
                     </div>
                 </div>
-                <Button variant="outline" className="w-full text-destructive border-destructive/20 hover:bg-destructive/10" onClick={async () => { await supabase.auth.signOut(); logout(); router.push("/login"); }}>
-                    <LogOut className="h-4 w-4 mr-2" />
+                <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full text-xs text-muted-foreground hover:text-destructive hover:border-destructive/30 hover:bg-destructive/5 h-8"
+                    onClick={async () => {
+                        await supabase.auth.signOut();
+                        logout();
+                        router.push("/login");
+                    }}
+                >
+                    <LogOut className="h-3.5 w-3.5 mr-2" />
                     {t.common.logout}
                 </Button>
             </div>
@@ -130,34 +223,63 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     );
 
     return (
-        <div className="flex h-screen bg-background overflow-hidden">
+        <div className="flex h-[100dvh] bg-background overflow-hidden">
             {/* Desktop Sidebar */}
-            <aside className="hidden md:block w-64 bg-sidebar border-r border-sidebar-border">
+            <aside className="hidden md:block w-64 bg-sidebar border-r border-sidebar-border shrink-0">
                 <SidebarContent />
             </aside>
 
             <div className="flex-1 flex flex-col h-full overflow-hidden relative">
                 {/* Mobile Header */}
-                <header className="md:hidden h-14 border-b border-border flex items-center px-4 justify-between bg-card/80 backdrop-blur-md sticky top-0 z-20">
-                    <span className="font-bold font-heading text-primary">Irresistible</span>
-                    <Sheet>
+                <header className="md:hidden h-13 border-b border-border flex items-center px-3.5 justify-between bg-card/95 backdrop-blur-md sticky top-0 z-20 shrink-0">
+                    <Link href="/dashboard" className="flex items-center gap-2 min-w-0">
+                        <div className="h-7 w-7 rounded-md bg-primary flex items-center justify-center text-primary-foreground font-heading font-bold text-xs shrink-0">
+                            IA
+                        </div>
+                        <span className="font-bold font-heading text-sm text-foreground truncate">
+                            Irresistible Agent
+                        </span>
+                    </Link>
+                    <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
                         <SheetTrigger asChild>
-                            <Button variant="ghost" size="icon"><Menu className="h-5 w-5" /></Button>
+                            <Button variant="ghost" size="icon" className="h-9 w-9">
+                                <Menu className="h-5 w-5" />
+                            </Button>
                         </SheetTrigger>
-                        <SheetContent side="left" className="p-0 w-64 bg-sidebar border-r border-sidebar-border">
+                        <SheetContent side="left" className="p-0 w-68 bg-sidebar border-r border-sidebar-border">
                             <SidebarContent />
                         </SheetContent>
                     </Sheet>
                 </header>
 
                 {/* Main Content Area */}
-                <main className="flex-1 overflow-auto p-4 md:p-8 relative">
-                    {/* Gradient Splashes */}
-                    <div className="absolute top-0 left-0 w-full h-[500px] bg-gradient-to-b from-primary/5 to-transparent pointer-events-none" />
+                <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-5 md:p-8 relative">
                     <div className="relative z-10 max-w-6xl mx-auto">
                         {children}
                     </div>
                 </main>
+
+                {/* Mobile Bottom Navigation Bar */}
+                <nav className="md:hidden border-t border-border bg-card/95 backdrop-blur-md px-1 py-1 flex items-center justify-around shrink-0 z-20">
+                    {links.slice(0, 4).map((link) => {
+                        const isActive = pathname === link.href;
+                        return (
+                            <Link
+                                key={link.href}
+                                href={link.href}
+                                className={cn(
+                                    "flex flex-col items-center justify-center py-1 px-2.5 rounded-lg transition-colors min-w-[68px]",
+                                    isActive
+                                        ? "text-primary font-semibold"
+                                        : "text-muted-foreground hover:text-foreground font-medium"
+                                )}
+                            >
+                                <link.icon className={cn("h-4 w-4 mb-0.5", isActive ? "text-primary" : "text-muted-foreground")} />
+                                <span className="text-[10px] leading-tight truncate">{link.shortLabel}</span>
+                            </Link>
+                        );
+                    })}
+                </nav>
             </div>
         </div>
     );

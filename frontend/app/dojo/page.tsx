@@ -49,12 +49,18 @@ export default function DojoPage() {
     const [isEvaluating, setIsEvaluating] = useState(false);
 
     const scrollRef = useRef<HTMLDivElement>(null);
+    const dojoTextareaRef = useRef<HTMLTextAreaElement>(null);
     const autoSendTimerRef = useRef<NodeJS.Timeout | null>(null);
     const inputRef = useRef(input); // Keep input in ref for auto-send
 
-    // Keep input ref in sync
+    // Keep input ref in sync and auto-resize textarea
     useEffect(() => {
         inputRef.current = input;
+        const el = dojoTextareaRef.current;
+        if (el) {
+            el.style.height = "auto";
+            el.style.height = `${Math.min(el.scrollHeight, 180)}px`;
+        }
     }, [input]);
 
     // Voice Hooks — stabilize onResult with useCallback to prevent hook recreation
@@ -288,22 +294,29 @@ export default function DojoPage() {
 
     return (
         <DashboardLayout>
-            <div className="h-[calc(100vh-140px)] flex flex-col gap-6">
+            <div className="flex flex-col gap-4 lg:gap-6 lg:h-[calc(100dvh-8rem)] pb-6 lg:pb-0">
 
-                {/* Header */}
-                <div className="flex justify-between items-center shrink-0">
+                {/* Header (hidden on mobile during active simulation to maximize chat space) */}
+                <div className={`${(isPlaying || evaluation) ? "hidden lg:flex" : "flex"} justify-between items-center shrink-0`}>
                     <div>
-                        <h2 className="text-3xl font-bold font-heading tracking-tight flex items-center gap-2">
-                            🥋 {t.dojo.title}
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-primary block mb-0.5">
+                            {language === "es" ? "Formación Práctica por Área Ministerial" : "Practical Ministry Area Training"}
+                        </span>
+                        <h2 className="text-xl sm:text-2xl md:text-3xl font-bold font-heading tracking-tight text-foreground">
+                            {language === "es" ? "Centro de Entrenamiento para Líderes" : "Leadership Training Center"}
                         </h2>
-                        <p className="text-muted-foreground">{t.dojo.subtitle}</p>
+                        <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+                            {language === "es"
+                                ? "Practica conversaciones reales de tu área (grupos pequeños, niños, atención al invitado, producción o liderazgo) y recibe retroalimentación inmediata."
+                                : "Practice real conversations from your ministry area and receive immediate coaching."}
+                        </p>
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full min-h-0">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6 flex-1 min-h-0">
 
                     {/* LEFT PANEL: Selection / Context */}
-                    <div className="lg:col-span-1 flex flex-col gap-4 h-full min-h-0 overflow-y-auto pr-2">
+                    <div className="lg:col-span-1 flex flex-col gap-4 lg:h-full min-h-0 lg:overflow-y-auto lg:pr-2">
                         {!isPlaying && !evaluation ? (
                             // LIST VIEW
                             <div className="space-y-4">
@@ -356,20 +369,41 @@ export default function DojoPage() {
                                 ))}
                             </div>
                         ) : (
-                            // CONTEXT VIEW (During Simulation)
-                            <Card className="h-full border-blue-500/20 bg-blue-500/5 flex flex-col">
-                                <CardHeader>
-                                    <div className="flex justify-between items-start">
-                                        <CardTitle className="text-lg text-blue-400">{activeScenario?.name}</CardTitle>
-                                        <Button variant="ghost" size="sm" onClick={() => { setIsPlaying(false); setEvaluation(null); setSelectedScenarioId(null); }}>
-                                            {t.dojo.exit}
-                                        </Button>
+                            // CONTEXT VIEW (Compact on mobile, full card on desktop)
+                            <Card className="lg:h-full border-primary/25 bg-primary/5 flex flex-col">
+                                <CardHeader className="py-3 px-4 lg:p-6">
+                                    <div className="flex justify-between items-center gap-2">
+                                        <CardTitle className="text-sm sm:text-base lg:text-lg text-primary truncate">
+                                            {activeScenario?.name}
+                                        </CardTitle>
+                                        <div className="flex items-center gap-1.5 shrink-0">
+                                            <Button
+                                                variant="default"
+                                                size="sm"
+                                                className="lg:hidden h-7 px-2.5 text-xs bg-red-600 hover:bg-red-700 text-white"
+                                                onClick={handleEvaluate}
+                                                disabled={isEvaluating || !!evaluation}
+                                            >
+                                                <Trophy className="mr-1 h-3 w-3" /> {t.dojo.endSimulation}
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="h-7 px-2 text-xs"
+                                                onClick={() => { setIsPlaying(false); setEvaluation(null); setSelectedScenarioId(null); }}
+                                            >
+                                                {t.dojo.exit}
+                                            </Button>
+                                        </div>
                                     </div>
-                                    <Separator className="bg-blue-500/20" />
+                                    <p className="lg:hidden text-xs text-muted-foreground mt-1 line-clamp-2">
+                                        <strong>{t.dojo.goal}:</strong> {activeScenario?.goal || t.dojo.goalDesc}
+                                    </p>
+                                    <Separator className="hidden lg:block bg-primary/20 mt-2" />
                                 </CardHeader>
-                                <CardContent className="space-y-6 flex-1">
+                                <CardContent className="hidden lg:block space-y-6 flex-1">
                                     <div className="space-y-2">
-                                        <h4 className="flex items-center gap-2 text-sm font-bold uppercase text-blue-600 dark:text-blue-400">
+                                        <h4 className="flex items-center gap-2 text-sm font-bold uppercase text-primary">
                                             <MessageSquare className="h-4 w-4" /> {t.dojo.context}
                                         </h4>
                                         <p className="text-sm">{activeScenario?.context || t.dojo.contextDesc}</p>
@@ -389,7 +423,7 @@ export default function DojoPage() {
                                         <p className="text-sm opacity-90">{activeScenario?.tone || t.dojo.toneDesc}</p>
                                     </div>
                                 </CardContent>
-                                <CardFooter>
+                                <CardFooter className="hidden lg:flex">
                                     <Button
                                         variant="default"
                                         className="w-full bg-red-600 hover:bg-red-700 text-white"
@@ -404,7 +438,7 @@ export default function DojoPage() {
                     </div>
 
                     {/* RIGHT PANEL: Chat / Evaluation */}
-                    <div className="lg:col-span-2 h-full min-h-0">
+                    <div className={`${(!selectedScenarioId && !evaluation) ? "hidden lg:block" : "block"} lg:col-span-2 h-[calc(100dvh-13.5rem)] lg:h-full min-h-0`}>
                         <Card className="h-full flex flex-col border-none shadow-none bg-transparent">
                             {evaluation ? (
                                 // EVALUATION RESULTS
@@ -442,8 +476,8 @@ export default function DojoPage() {
                                         {messages.map((msg, i) => (
                                             <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                                                 <div className={`flex gap-3 max-w-[80%] ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
-                                                    <div className={`h-8 w-8 rounded-full flex items-center justify-center shrink-0 ${msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
-                                                        {msg.role === 'user' ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
+                                                    <div className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 text-xs font-bold ${msg.role === 'user' ? 'bg-foreground text-background' : 'bg-primary/15 text-primary border border-primary/20'}`}>
+                                                        {msg.role === 'user' ? <User className="h-4 w-4" /> : "SIM"}
                                                     </div>
                                                     <div className={`p-3 rounded-lg text-sm ${msg.role === 'user'
                                                         ? 'bg-primary text-primary-foreground rounded-tr-none'
@@ -479,35 +513,57 @@ export default function DojoPage() {
                                         <form
                                             id="dojo-chat-form"
                                             onSubmit={(e) => { e.preventDefault(); handleSend(); }}
-                                            className="flex gap-2"
                                         >
-                                            <Input
-                                                value={input}
-                                                onChange={e => setInput(e.target.value)}
-                                                placeholder={t.dojo.typeResponse + (isListening ? " (Escuchando...)" : "")}
-                                                disabled={isLoading}
-                                                className="flex-1"
-                                                autoFocus
-                                            />
-                                            {/* Mic Button */}
-                                            <MicButton
-                                                isListening={isListening}
-                                                onStart={startListening}
-                                                onStop={stopListening}
-                                                disabled={isLoading || !hasMicSupport}
-                                            />
-                                            <Button type="submit" disabled={isLoading || !input.trim()}>
-                                                <Send className="h-4 w-4" />
-                                            </Button>
+                                            <div className="flex items-end gap-2 rounded-2xl border border-border bg-card px-3.5 py-2 shadow-2xs focus-within:ring-2 focus-within:ring-primary/30 focus-within:border-primary/50 transition-all">
+                                                <textarea
+                                                    ref={dojoTextareaRef}
+                                                    rows={1}
+                                                    value={input}
+                                                    onChange={e => setInput(e.target.value)}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === "Enter" && !e.shiftKey) {
+                                                            e.preventDefault();
+                                                            if (input.trim() && !isLoading) {
+                                                                handleSend();
+                                                            }
+                                                        }
+                                                    }}
+                                                    placeholder={t.dojo.typeResponse + (isListening ? " (Escuchando...)" : "")}
+                                                    disabled={isLoading}
+                                                    className="flex-1 bg-transparent border-0 resize-none py-1.5 text-sm leading-relaxed text-foreground placeholder:text-muted-foreground focus:outline-none max-h-[180px] overflow-y-auto"
+                                                    autoFocus
+                                                />
+                                                <div className="flex items-center gap-1.5 shrink-0 pb-0.5">
+                                                    <MicButton
+                                                        isListening={isListening}
+                                                        onStart={startListening}
+                                                        onStop={stopListening}
+                                                        disabled={isLoading || !hasMicSupport}
+                                                    />
+                                                    <Button type="submit" size="icon" className="h-9 w-9 rounded-xl shrink-0" disabled={isLoading || !input.trim()}>
+                                                        <Send className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+                                            </div>
                                         </form>
                                     </div>
                                 </div>
                             ) : (
                                 // EMPTY STATE
-                                <div className="h-full flex flex-col items-center justify-center text-muted-foreground p-8 text-center border-2 border-dashed rounded-xl">
-                                    <Bot className="h-16 w-16 mb-4 opacity-20" />
-                                    <h3 className="text-xl font-bold mb-2">{t.dojo.emptyStateTitle}</h3>
-                                    <p className="max-w-md">{t.dojo.emptyStateDesc}</p>
+                                <div className="h-full flex flex-col items-center justify-center text-muted-foreground p-8 text-center border border-border bg-card rounded-xl shadow-2xs">
+                                    <div className="h-14 w-14 rounded-2xl bg-primary/12 text-primary flex items-center justify-center mb-4 border border-primary/20">
+                                        <Target className="h-7 w-7" />
+                                    </div>
+                                    <h3 className="text-xl font-bold font-heading text-foreground mb-2">
+                                        {language === "es"
+                                            ? "Entrena a tu Equipo para la Vida Real"
+                                            : "Train Your Team for Real Ministry Conversations"}
+                                    </h3>
+                                    <p className="max-w-md text-sm leading-relaxed">
+                                        {language === "es"
+                                            ? "Elige un escenario a la izquierda (padres en el área de niños, miembros de grupo pequeño, visitantes nuevos, voluntarios agotados) o escribe una situación real de tu área para practicar cómo responder con empatía y claridad."
+                                            : t.dojo.emptyStateDesc}
+                                    </p>
                                 </div>
                             )}
                         </Card>

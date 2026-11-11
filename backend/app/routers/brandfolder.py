@@ -11,29 +11,74 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+SPANISH_TO_ENGLISH_TERMS = {
+    "matrimonio": "marriage",
+    "matrimonios": "marriage",
+    "parejas": "marriage",
+    "niños": "children",
+    "ninos": "children",
+    "infantil": "children",
+    "jóvenes": "students",
+    "jovenes": "students",
+    "adolescentes": "students",
+    "grupos": "groups",
+    "grupos pequeños": "community groups",
+    "voluntarios": "volunteer",
+    "voluntariado": "volunteer",
+    "finanzas": "generosity",
+    "dinero": "money",
+    "generosidad": "be rich",
+    "liderazgo": "leadership",
+    "bienvenida": "guest services",
+    "invitados": "guest services",
+    "alabanza": "worship",
+    "música": "music",
+    "musica": "music",
+    "ansiedad": "anxiety",
+    "perdón": "forgiveness",
+    "perdon": "forgiveness",
+    "familia": "family",
+    "padres": "parent",
+    "fe": "faith",
+    "visión": "vision",
+    "vision": "vision",
+    "estrategia": "strategy",
+}
+
 @router.post("/search")
 async def search_assets(request: SearchRequest, current_user: dict = Depends(verify_active_user)):
     try:
         api = BrandfolderAPI()
-        # Use first brandfolder if not specified
+        # Use first brandfolder/collection if not specified
         bf_id = request.brandfolder_id
         if not bf_id:
-             bfs = api.get_brandfolders()
-             if bfs:
-                 bf_id = bfs[0]["id"]
-             else:
-                 raise HTTPException(status_code=404, detail="No brandfolders found")
-                 
-        results = api.search_assets(bf_id, request.query)
-        
+            bfs = api.get_brandfolders()
+            if bfs:
+                bf_id = bfs[0]["id"]
+            else:
+                raise HTTPException(status_code=404, detail="No brandfolders found")
+
+        raw_q = (request.query or "").strip()
+        search_q = SPANISH_TO_ENGLISH_TERMS.get(raw_q.lower(), raw_q)
+
+        results = api.search_assets(bf_id, search_q, max_pages=1)
+        if not results and search_q == raw_q:
+            try:
+                chat = ChatService()
+                optimized = chat.optimize_query(raw_q)
+                if optimized and optimized != raw_q:
+                    results = api.search_assets(bf_id, optimized, max_pages=1)
+            except Exception:
+                pass
+
         # Simplify results for frontend
         simple_results = []
-        for asset in results:
+        for asset in results[:40]:
             info = api.extract_asset_info(asset)
             simple_results.append(info)
-            
-        return {"results": simple_results}
-        
+
+        return {"results": simple_results, "translated_query": search_q}
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

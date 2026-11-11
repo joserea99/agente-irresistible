@@ -21,34 +21,34 @@ DOJO_SCENARIOS = {
         "id": "angry_parent",
         "en": {
             "name": "The Angry Parent",
-            "description": "A parent is upset because their 5-year-old was pushed on the playground in Waumba Land.",
+            "description": "A parent is upset because their 5-year-old was pushed on the playground in the kids area.",
             "context": "You are talking to Sarah, a protective mother whose son was pushed.",
             "goal": "De-escalate the situation, validate her feelings, and explain safety protocols without being defensive.",
             "tone": "Hostile, Emotional, Protective",
             "system_prompt": """
 You are 'Sarah', a protective and currently angry mother.
-Your 5-year-old son, Timmy, came out of Waumba Land crying with a scraped knee, saying a bigger kid pushed him.
+Your 5-year-old son, Timmy, came out of the kids classroom crying with a scraped knee, saying a bigger kid pushed him.
 You feel the church was negligent. You are talking to the Children's Ministry Director.
 
 GOAL: Express your frustration. Demand to see the incident report (which you assume doesn't exist). 
 Do not be easily calmed. Make the user work to earn your trust back.
 Only calm down if the user apologizes sincerely, explains the safety protocol, and assures you of a follow-up.
 
-TONE: Emotional, accusatory, protective.
+TONO: Emotional, accusatory, protective.
 LANGUAGE: ENGLISH.
 """,
             "opening_line": "Excuse me, I need to speak to whoever is in charge. My son just came out crying and nobody told me anything!"
         },
         "es": {
             "name": "El Padre Enojado",
-            "description": "Una mamá está molesta porque empujaron a su hijo de 5 años en Waumba Land.",
+            "description": "Una mamá está molesta porque empujaron a su hijo de 5 años en el área de niños.",
             "context": "Estás hablando con Sarah, una madre protectora cuyo hijo fue empujado.",
             "goal": "Desescalar la situación, validar sus sentimientos y explicar los protocolos de seguridad sin ponerte a la defensiva.",
             "tone": "Hostil, Emocional, Protectora",
             "system_prompt": """
 Eres 'Sarah', una madre protectora y actualmente muy enojada.
-Tu hijo de 5 años, Timmy, salió de Waumba Land llorando con la rodilla raspada, diciendo que un niño grande lo empujó.
-Sientes que la iglesia fue negligente. Estás hablando con el Director del Ministerio de Niños.
+Tu hijo de 5 años, Timmy, salió del salón de niños llorando con la rodilla raspada, diciendo que un niño grande lo empujó.
+Sientes que la iglesia fue negligente. Estás hablando con el líder o director del Ministerio de Niños.
 
 OBJETIVO: Expresar tu frustración. Exige ver el reporte del incidente (asumes que no existe).
 No te calmes fácilmente. Haz que el usuario trabaje para ganarse tu confianza de nuevo.
@@ -447,8 +447,8 @@ IDIOMA: ESPAÑOL (Tu respuesta debe ser exclusivamente en Español).
 EVALUATOR_PROMPTS = {
     "en": """
 Context: The user has just completed a roleplay simulation provided above.
-Your Role: You are the Master Coach for the Irresistible Church Network.
-Task: Evaluate the User's performance based on Irresistible Church values.
+Your Role: You are the Master Coach at Irresistible Agent.
+Task: Evaluate the User's performance based on strategic and pastoral leadership values.
 
 Criteria:
 1. Empathy: Did they listen before fixing?
@@ -459,23 +459,23 @@ Output format:
 **SCORE:** X/10
 **WHAT WENT WELL:** [Bullet points]
 **AREAS FOR IMPROVEMENT:** [Bullet points]
-**IRRESISTIBLE CHURCH PRINCIPLE:** Quote a specific principle applicable here (e.g., "Walk toward the mess", "Circles are better than rows").
+**KEY LEADERSHIP PRINCIPLE:** Quote a specific principle applicable here (e.g., "Walk toward the mess", "Circles are better than rows").
 """,
     "es": """
 Contexto: El usuario acaba de completar una simulación de rol.
-Tu Rol: Eres el Master Coach de la Red de Iglesias Irresistibles.
-Tarea: Evaluar el desempeño del usuario basado en los valores de la Iglesia Irresistible.
+Tu Rol: Eres el Master Coach de Irresistible Agent.
+Tarea: Evaluar el desempeño del usuario basado en principios de liderazgo pastoral y estratégico (nunca uses palabras como 'ujieres' o 'acomodadores', usa 'Anfitriones' o 'Atención al Invitado').
 
 Criterios:
 1. Empatía: ¿Escucharon antes de intentar arreglarlo?
-2. Estrategia: ¿Siguieron el protocolo (Seguridad, Liderazgo, Enfoque misional)?
+2. Estrategia: ¿Siguieron el protocolo (Seguridad, Liderazgo, Enfoque en el visitante)?
 3. Tono: ¿Fueron defensivos o acogedores?
 
 Formato de Salida:
 **PUNTUACIÓN:** X/10
 **QUÉ SALIÓ BIEN:** [Puntos clave]
 **ÁREAS DE MEJORA:** [Puntos clave]
-**PRINCIPIO IGLESIA IRRESISTIBLE:** Cita un principio específico aplicable (ej. "Camina hacia el desastre", "Los círculos son mejores que las filas").
+**PRINCIPIO RECTOR (IRRESISTIBLE AGENT):** Cita un principio específico aplicable (ej. "Camina hacia el problema con empatía", "Los círculos son mejores que las filas").
 """
 }
 
@@ -569,11 +569,13 @@ class DojoService:
                 config=types.GenerateContentConfig(
                     system_instruction=system_prompt,
                     temperature=0.8,
+                    thinking_config=types.ThinkingConfig(thinking_budget=0),
                 )
             )
             return response.text
         except Exception as e:
-            return f"❌ Error generating response: {str(e)}"
+            from .chat_service import ChatService
+            return ChatService._format_friendly_error(e)
     
     def evaluate_performance(
         self,

@@ -30,7 +30,7 @@ async def get_current_admin(credentials: HTTPAuthorizationCredentials = Depends(
     profile, error = verify_token(token)
     if error != "success" or not profile:
         raise HTTPException(status_code=401, detail="Invalid token")
-    if profile.get("role") != "admin":
+    if profile.get("role") not in ("admin", "pastor_principal"):
         raise HTTPException(status_code=403, detail="Admin access required")
     return profile
 

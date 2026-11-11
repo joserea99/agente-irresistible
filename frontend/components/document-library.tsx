@@ -45,7 +45,7 @@ function SourceBadge({ source }: { source: string }) {
     if (type === "brandfolder") {
         return (
             <Badge variant="outline" className="gap-1 text-purple-400 border-purple-400/30 bg-purple-400/10">
-                <Database className="h-3 w-3" /> Brandfolder
+                <Database className="h-3 w-3" /> Biblioteca Central
             </Badge>
         );
     }
@@ -134,7 +134,7 @@ export function DocumentLibrary() {
                             <SelectContent>
                                 <SelectItem value="all">Todos ({counts.all})</SelectItem>
                                 <SelectItem value="direct">Subida directa ({counts.direct})</SelectItem>
-                                <SelectItem value="brandfolder">Brandfolder ({counts.brandfolder})</SelectItem>
+                                <SelectItem value="brandfolder">Biblioteca Central ({counts.brandfolder})</SelectItem>
                                 <SelectItem value="web">Web ({counts.web})</SelectItem>
                             </SelectContent>
                         </Select>

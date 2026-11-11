@@ -14,6 +14,9 @@ import tempfile
 
 # Brandfolder API Configuration
 BRANDFOLDER_API_BASE = "https://brandfolder.com/api/v4"
+_CACHED_BRANDFOLDERS: Optional[List[Dict]] = None
+_CACHED_BRANDFOLDERS_TS: float = 0.0
+_KNOWN_COLLECTION_IDS: set = set()
 
 class BrandfolderAPI:
     """
@@ -27,7 +30,15 @@ class BrandfolderAPI:
         Args:
             api_key: Brandfolder API key. If not provided, looks for BRANDFOLDER_API_KEY env var.
         """
-        self.api_key = api_key or os.environ.get("BRANDFOLDER_API_KEY")
+        if not api_key:
+            api_key = os.environ.get("BRANDFOLDER_API_KEY")
+        if not api_key:
+            try:
+                from ..core.config import settings
+                api_key = settings.brandfolder_api_key
+            except Exception:
+                pass
+        self.api_key = api_key
         
         if not self.api_key:
             raise ValueError("Brandfolder API key not provided. Set BRANDFOLDER_API_KEY or pass api_key.")
@@ -39,6 +50,10 @@ class BrandfolderAPI:
         # Total the API declared for the LAST asset listing fetched (meta.total_count).
         # Lets callers reconcile "how many did I collect" vs "how many exist".
         self._last_total_count = None
+
+    def is_configured(self) -> bool:
+        """Return True if an API key is configured."""
+        return bool(self.api_key)
 
     def _request(self, method: str, endpoint: str, params: Optional[Dict] = None) -> Dict[str, Any]:
         """Make an API request."""
@@ -151,18 +166,41 @@ class BrandfolderAPI:
         Returns:
             List of brandfolder objects with id, name, etc.
         """
+        global _CACHED_BRANDFOLDERS, _CACHED_BRANDFOLDERS_TS, _KNOWN_COLLECTION_IDS
+        if _CACHED_BRANDFOLDERS and (time.time() - _CACHED_BRANDFOLDERS_TS) < 300:
+            return list(_CACHED_BRANDFOLDERS)
+
         result = self._request("GET", "/brandfolders")
         data = result.get("data", []) or []
         if data:
+            _CACHED_BRANDFOLDERS = list(data)
+            _CACHED_BRANDFOLDERS_TS = time.time()
             return data
 
-        # Direct listing was empty. Some accounts only expose brandfolders through
-        # their organization(s), so try that path before giving up.
+        # Try /collections directly first (most collection-scoped keys expose collections here)
+        seen = set()
+        try:
+            cols = self._list_all("/collections")
+            if cols:
+                cols.sort(key=lambda c: 0 if "all" in (c.get("attributes", {}).get("slug", "") or "").lower() else 1)
+                for col in cols:
+                    cid = col.get("id")
+                    if cid and cid not in seen:
+                        seen.add(cid)
+                        _KNOWN_COLLECTION_IDS.add(cid)
+                        data.append(col)
+                if data:
+                    _CACHED_BRANDFOLDERS = list(data)
+                    _CACHED_BRANDFOLDERS_TS = time.time()
+                    return data
+        except Exception as e:
+            print(f"   fallback de colecciones falló: {e}")
+
+        # Direct listing and collections were empty; try organization(s).
         print("⚠️ /brandfolders vacío; intentando vía organizaciones...")
         try:
             orgs = self._request("GET", "/organizations").get("data", []) or []
             print(f"   organizaciones visibles: {len(orgs)}")
-            seen = set()
             for org in orgs:
                 org_id = org.get("id")
                 if not org_id:
@@ -177,20 +215,10 @@ class BrandfolderAPI:
         except Exception as e:
             print(f"   fallback de organizaciones falló: {e}")
 
-        if not data:
-            print("⚠️ /brandfolders y organizaciones vacíos; intentando vía /collections...")
-            try:
-                cols = self._list_all("/collections")
-                if cols:
-                    print(f"   colecciones visibles: {len(cols)}")
-                    # Sort so that *All ICN Assets or all-icn is first
-                    cols.sort(key=lambda c: 0 if "all" in (c.get("attributes", {}).get("slug", "") or "").lower() else 1)
-                    for col in cols:
-                        if col.get("id") and col["id"] not in seen:
-                            seen.add(col["id"])
-                            data.append(col)
-            except Exception as e:
-                print(f"   fallback de colecciones falló: {e}")
+        if data:
+            _CACHED_BRANDFOLDERS = list(data)
+            _CACHED_BRANDFOLDERS_TS = time.time()
+            return data
 
         if not data:
             print(
@@ -424,7 +452,8 @@ class BrandfolderAPI:
         return {"api_total": meta.get("total_count"), "endpoint_used": endpoint_used}
 
     def search_assets(self, brandfolder_id: str, query: str,
-                      include_attachments: bool = True) -> List[Dict]:
+                      include_attachments: bool = True,
+                      max_pages: Optional[int] = None) -> List[Dict]:
         """
         Search for assets within a brandfolder.
         
@@ -432,6 +461,7 @@ class BrandfolderAPI:
             brandfolder_id: The brandfolder to search in
             query: Search query string
             include_attachments: Whether to include attachment details
+            max_pages: Optional cap on number of pages fetched (1 for interactive UI search)
         """
         params = {
             "search": query,
@@ -440,15 +470,20 @@ class BrandfolderAPI:
         if include_attachments:
             params["include"] = "attachments"
         
-        # Initial Request
-        endpoint = f"/brandfolders/{brandfolder_id}/assets"
-        result = self._request("GET", endpoint, params)
-        if result.get("error") or not result.get("data"):
-            col_endpoint = f"/collections/{brandfolder_id}/assets"
-            col_result = self._request("GET", col_endpoint, params)
-            if col_result.get("data"):
-                result = col_result
-                endpoint = col_endpoint
+        # Initial Request (prefer /collections if known collection ID)
+        if brandfolder_id in _KNOWN_COLLECTION_IDS:
+            endpoint = f"/collections/{brandfolder_id}/assets"
+            result = self._request("GET", endpoint, params)
+        else:
+            endpoint = f"/brandfolders/{brandfolder_id}/assets"
+            result = self._request("GET", endpoint, params)
+            if result.get("error") or not result.get("data"):
+                col_endpoint = f"/collections/{brandfolder_id}/assets"
+                col_result = self._request("GET", col_endpoint, params)
+                if col_result.get("data"):
+                    _KNOWN_COLLECTION_IDS.add(brandfolder_id)
+                    result = col_result
+                    endpoint = col_endpoint
         
         # Map included attachments to assets
         assets = result.get("data") or []
@@ -457,12 +492,14 @@ class BrandfolderAPI:
         # Pagination Loop
         meta = result.get("meta", {})
         next_page = meta.get("next_page")
+        pages_fetched = 1
         
-        while next_page:
+        while next_page and (max_pages is None or pages_fetched < max_pages):
             print(f"🔎 Fetching search page {next_page}...")
             
             params["page"] = next_page
             result = self._request("GET", endpoint, params)
+            pages_fetched += 1
             
             new_assets = result.get("data") or []
             new_included = result.get("included") or []
@@ -477,7 +514,16 @@ class BrandfolderAPI:
             meta = result.get("meta", {})
             next_page = meta.get("next_page")
 
-        return self._map_attachments_to_assets(assets, included)
+        mapped = self._map_attachments_to_assets(assets, included)
+        if query:
+            q_lower = query.lower().strip()
+            mapped.sort(
+                key=lambda a: (
+                    0 if q_lower in (a.get("attributes", {}).get("name") or "").lower() else 1,
+                    0 if q_lower in (a.get("attributes", {}).get("description") or "").lower() else 1,
+                )
+            )
+        return mapped
     
     def _map_attachments_to_assets(self, assets: List[Dict], included: List[Dict]) -> List[Dict]:
         """
@@ -592,6 +638,7 @@ class BrandfolderAPI:
             "id": asset.get("id"),
             "name": attributes.get("name", "Untitled"),
             "description": attributes.get("description", ""),
+            "thumbnail_url": attributes.get("thumbnail_url", ""),
             "created_at": attributes.get("created_at"),
             "updated_at": attributes.get("updated_at"),
             "attachments": [],
